@@ -82,25 +82,25 @@ class Trainer:
 class Model_training_manager:
     """Train CNN models for presence, segmentation, inversion, pixel concentration retrieval tasks."""
 
-    def __init__(self, config_file: str) -> None:
-        config = TreeConfigParser()
-        config.readfiles(config_file)
+    def __init__(self, cfg: DictConfig) -> None:
 
-        self.prepare_data(config)
+        self.prepare_data(cfg)
 
-        self.build_model(config)
+        self.build_model(cfg)
 
-        self.prepare_training(config)
+        self.prepare_training(cfg)
 
-        self.saver = Saver(config, config_file)
+        self.saver = Saver(cfg)
 
-    def prepare_data(self, config: TreeConfigParser) -> None:
+    def prepare_data(self, cfg: DictConfig) -> None:
         """Prepare Data inputs to the neural network and outputs (=labels, targets)."""
-        self.data = Data(config)
+        self.data = Data(cfg.data.path.directory,
+                         cfg.data.path.train
+        )
         self.data.prepare_input()
         self.data.prepare_output()
 
-    def build_model(self, config: TreeConfigParser) -> None:
+    def build_model(self, cfg: DictConfig) -> None:
         """Build model."""
         self.model = build_model(
             config.get("data.output.label.choice"),
@@ -116,7 +116,7 @@ class Model_training_manager:
             metrics=loss.define_metrics(config),
         )
 
-    def prepare_training(self, config: TreeConfigParser) -> None:
+    def prepare_training(self, cfg: DictConfig) -> None:
         """Prepare the training phase."""
         callbacks.initiate_wb(config)
         generator = generators.Generator(
