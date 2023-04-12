@@ -1,0 +1,1 @@
+[2023-01-19 17:10:07,386][wandb.jupyter][ERROR] - Failed to detect the name of this notebook, you can set it manually with the WANDB_NOTEBOOK_NAME environment variable to enable code saving.

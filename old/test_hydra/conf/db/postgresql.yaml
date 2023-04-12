@@ -1,0 +1,4 @@
+driver: postgresql
+user: joffrey
+password: secret_2
+timeout: 10

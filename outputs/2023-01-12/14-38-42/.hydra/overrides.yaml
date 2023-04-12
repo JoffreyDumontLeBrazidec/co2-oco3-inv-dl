@@ -1,0 +1,3 @@
+- model=segmentation
+- augmentations.shift=0.2
+- data.path.train.name=2km_Lip

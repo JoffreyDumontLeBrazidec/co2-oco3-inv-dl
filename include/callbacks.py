@@ -1,89 +1,78 @@
 # ----------------------------------------------------------------------------
 # author: joffrey.dumont@enpc.fr or joffreydumont@hotmail.fr
-# created: 2021/2022
+# created: 2021-2023
 # laboratory: CEREA,  École des Ponts and EDF R&D, Île-de-France, France
 # project: Prototype system for a Copernicus C02 monitoring service (CoCO2)
 # ----------------------------------------------------------------------------
 
 import os
 import sys
+
 import numpy as np
-from treeconfigparser import TreeConfigParser
+import tensorflow as tf
+from omegaconf import DictConfig, OmegaConf
 from tensorflow import keras
 from wandb.keras import WandbCallback
+
 import wandb
 
 
-def initiate_wb(config: TreeConfigParser) -> None:
+def initiate_wb(cfg: DictConfig) -> None:
     """Initiate Weight and Biases."""
-                
-    if config.get("model.callback.wandb"):
+
+    if cfg.callbacks.wandb:
         config_wb = {
-            "data": config.get("data.directory.name"),
-            "model": config.get("model.name"),
-            "rot": config.get_float("data.input.aug.rot.range"),
-            "flip": config.get_bool("data.input.aug.flip.bool"),
-            "shear": config.get_float("data.input.aug.shear.range"),
-            "zoom": config.get_float("data.input.aug.zoom.range"),
-            "dropout_rate": config.get("model.dropout_rate"),
-        }        
-        
-        if config.get("data.output.label.choice") == "segmentation":
-            config_wb["shift"] = config.get_float("data.input.aug.shift.range")
-            config_wb["w_min"] = config.get_float("data.output.label.weight.min")
-            config_wb["w_max"] = config.get_float("data.output.label.weight.max")
-            config_wb["w_curve"] = config.get("data.output.label.weight.curve")
-        
-        if config.get("data.output.label.choice") == "inversion":
-            supp_inputs = config.get_stringlist("data.input.supps.list")
-            if len(supp_inputs) == 0:
-                add_1 = None
-                add_2 = None
-            elif len(supp_inputs) == 1:
-                add_1 = supp_inputs[0]
-                add_2 = None
-            elif len(supp_inputs) == 2:
-                add_1 = supp_inputs[0]
-                add_2 = supp_inputs[1]
+            "train": cfg.data.path.train.name,
+            "valid": cfg.data.path.valid.name,
+            "model": cfg.model.name,
+            "rot": cfg.augmentations.rot.range,
+            "flip": cfg.augmentations.flip.bool,
+            "shear": cfg.augmentations.shear.range,
+            "zoom": cfg.augmentations.zoom.range,
+            "dropout_rate": cfg.model.dropout_rate,
+            "chan_0": cfg.data.input.chan_0,
+            "chan_1": cfg.data.input.chan_1,
+            "chan_2": cfg.data.input.chan_2,
+            "chan_3": cfg.data.input.chan_3,
+            "chan_4": cfg.data.input.chan_4,
+        }
 
-            config_wb["add_1"] = add_1
-            config_wb["add_2"] = add_2
-            config_wb["loss"] = config.get("model.loss")
-            
-        wandb.init(project=config.get("data.output.label.choice"), 
-                   config=config_wb, 
-                   name=config.get("orga.save.folder"))
+        if cfg.sweep:
+            wandb.init(
+                project=cfg.exp_name,
+                config=config_wb,
+                name=os.path.basename(os.getcwd()),
+                settings=wandb.Settings(start_method="thread"),
+            )
+        else:
+            wandb.init(
+                project=cfg.model.type,
+                config=config_wb,
+                settings=wandb.Settings(start_method="thread"),
+            )
 
 
-def create_list_callbacks(
-    save_dir: str,
-    save_folder: str,
-    modelcheckpoint: bool = False,
-    reducelronplateau: bool = False,
-    earlystopping: bool = False,
-    wandb: bool = False,
-) -> list:
-    """Create a list of callbacks used during the training phase."""
-
-    dir_save_model = os.path.join(
-        save_dir, save_folder
-    )
-
-    list_callbacks = list()
-
-    if modelcheckpoint:
-        modelcheckpoint_cb = keras.callbacks.ModelCheckpoint(
-            filepath=os.path.join(dir_save_model, "weights_cp_best.h5"),
+def get_modelcheckpoint(get: bool, cbs: list, filepath="w_best.h5") -> list:
+    """Add modelcheckpoint to callbacks list if get."""
+    if get:
+        modelcheckpoint_cb = tf.keras.callbacks.ModelCheckpoint(
+            filepath=filepath,
             save_weights_only=False,
             monitor="val_loss",
             mode="auto",
             save_best_only=True,
             verbose=1,
         )
-        list_callbacks.append(modelcheckpoint_cb)
+        cbs.append(modelcheckpoint_cb)
+    else:
+        pass
+    return cbs
 
-    if reducelronplateau:
-        reducelronplateau_cb = keras.callbacks.ReduceLROnPlateau(
+
+def get_lrscheduler(get: bool, cbs: list) -> list:
+    """Add reducelronplateau to callbacks list if get."""
+    if get:
+        reducelronplateau_cb = tf.keras.callbacks.ReduceLROnPlateau(
             monitor="val_loss",
             factor=0.5,
             patience=20,
@@ -92,10 +81,16 @@ def create_list_callbacks(
             cooldown=0,
             min_lr=5e-5,
         )
-        list_callbacks.append(reducelronplateau_cb)
+        cbs.append(reducelronplateau_cb)
+    else:
+        pass
+    return cbs
 
-    if earlystopping:
-        earlystopping_cb = keras.callbacks.EarlyStopping(
+
+def get_earlystopping(get: bool, cbs: list) -> list:
+    """Add earlystopping to callbacks list if get."""
+    if get:
+        earlystopping_cb = tf.keras.callbacks.EarlyStopping(
             monitor="val_loss",
             min_delta=5e-4,
             patience=50,
@@ -104,9 +99,37 @@ def create_list_callbacks(
             baseline=None,
             restore_best_weights=True,
         )
-        list_callbacks.append(earlystopping_cb)
+        cbs.append(earlystopping_cb)
+    else:
+        pass
+    return cbs
 
-    if wandb:
-        list_callbacks.append(WandbCallback())
 
-    return list_callbacks
+def get_wandb(get: bool, cbs: list) -> list:
+    """Add wandb to callbacks list if get."""
+    if get:
+        cbs.append(WandbCallback())
+    else:
+        pass
+    return cbs
+
+
+class ExtraValidation(tf.keras.callbacks.Callback):
+    def __init__(self, extra_val_data):
+        super(ExtraValidation, self).__init__()
+
+        self.extra_val_data = extra_val_data
+
+    def on_epoch_end(self, epoch, logs=None):
+        (extra_val_data, extra_val_targets) = self.extra_val_data
+        extra_val_loss = self.model.evaluate(
+            extra_val_data, extra_val_targets, verbose=0
+        )
+        print("extra_val_loss:", extra_val_loss)
+        if type(extra_val_loss) == list:
+            wandb.log({"extra_val_loss": extra_val_loss[0]})
+            for idx, metric in enumerate(extra_val_loss[1:]):
+                wandb.log({f"extra_val_metric_{idx}": metric})
+
+        else:
+            wandb.log({"extra_val_loss": extra_val_loss})

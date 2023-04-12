@@ -1,0 +1,4 @@
+db:
+  case: berlin
+  loc: /libre
+  mode: train

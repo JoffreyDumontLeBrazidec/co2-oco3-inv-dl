@@ -1,0 +1,11 @@
+shuffle: True
+rot:
+    range: 180
+shift:
+    range: 0
+flip:
+    bool: True
+shear:
+    range: 90
+zoom:
+    range: 0.2

@@ -1,39 +1,42 @@
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # author: joffrey.dumont@enpc.fr or joffreydumont@hotmail.fr
-# created: 2021/2022 
-# laboratory: CEREA,  École des Ponts and EDF R&D, Île-de-France, France
-# project: Prototype system for a Copernicus C02 monitoring service (CoCO2)
-# heavily inspired from segmentation_models https://github.com/qubvel/segmentation_models
-#----------------------------------------------------------------------------
+# created: 2021/2022
+# laboratory: CEREA,  École des Ponts and EDF R&D, Île-de-France, France
+# project: Prototype system for a Copernicus C02 monitoring service (CoCO2)
+# heavily inspired from segmentation_models https://github.com/qubvel/segmentation_models
+# ----------------------------------------------------------------------------
+
+from dataclasses import dataclass
+from functools import partial
 
 import numpy as np
 from tensorflow import keras
-from dataclasses import dataclass
-from functools import partial
 
 # ---------------------------------------------------------------------
 # U-net decoder blocks
 # ---------------------------------------------------------------------
 
+
 def Conv2dBn(
-        filters,
-        kernel_size,
-        strides=(1, 1),
-        padding='valid',
-        data_format=None,
-        dilation_rate=(1, 1),
-        activation=None,
-        kernel_initializer='glorot_uniform',
-        bias_initializer='zeros',
-        kernel_regularizer=None,
-        bias_regularizer=None,
-        activity_regularizer=None,
-        kernel_constraint=None,
-        bias_constraint=None,
-        use_batchnorm=False,
-        **kwargs
+    filters,
+    kernel_size,
+    strides=(1, 1),
+    padding="valid",
+    data_format=None,
+    dilation_rate=(1, 1),
+    activation=None,
+    kernel_initializer="glorot_uniform",
+    bias_initializer="zeros",
+    kernel_regularizer=None,
+    bias_regularizer=None,
+    activity_regularizer=None,
+    kernel_constraint=None,
+    bias_constraint=None,
+    use_batchnorm=False,
+    **kwargs
 ):
     """Extension of Conv2D layer with batchnorm"""
+
     def wrapper(input_tensor):
 
         x = keras.layers.Conv2D(
@@ -64,15 +67,15 @@ def Conv2dBn(
 
     return wrapper
 
-def Conv3x3BnReLU(filters, use_batchnorm, name=None):
 
+def Conv3x3BnReLU(filters, use_batchnorm, name=None):
     def wrapper(input_tensor):
         return Conv2dBn(
             filters,
             kernel_size=3,
-            activation='relu',
-            kernel_initializer='he_uniform',
-            padding='same',
+            activation="relu",
+            kernel_initializer="he_uniform",
+            padding="same",
             use_batchnorm=use_batchnorm,
             name=name,
         )(input_tensor)
@@ -81,10 +84,10 @@ def Conv3x3BnReLU(filters, use_batchnorm, name=None):
 
 
 def DecoderUpsamplingX2Block(filters, stage, use_batchnorm=False):
-    up_name = 'decoder_stage{}_upsampling'.format(stage)
-    conv1_name = 'decoder_stage{}a'.format(stage)
-    conv2_name = 'decoder_stage{}b'.format(stage)
-    concat_name = 'decoder_stage{}_concat'.format(stage)
+    up_name = "decoder_stage{}_upsampling".format(stage)
+    conv1_name = "decoder_stage{}a".format(stage)
+    conv2_name = "decoder_stage{}b".format(stage)
+    concat_name = "decoder_stage{}_concat".format(stage)
 
     def wrapper(input_tensor, skip=None):
         x = keras.layers.UpSampling2D(size=2, name=up_name)(input_tensor)
@@ -98,19 +101,21 @@ def DecoderUpsamplingX2Block(filters, stage, use_batchnorm=False):
 
     return wrapper
 
+
 # ---------------------------------------------------------------------
 #  Unet Build func
 # ---------------------------------------------------------------------
 
+
 def build_unet(
-        backbone,
-        decoder_block,
-        skip_connection_layers,
-        decoder_filters=(160, 80, 40, 20, 10),
-        n_upsample_blocks=5,
-        classes=1,
-        activation='sigmoid',
-        use_batchnorm=True,
+    backbone,
+    decoder_block,
+    skip_connection_layers,
+    decoder_filters=(160, 80, 40, 20, 10),
+    n_upsample_blocks=5,
+    classes=1,
+    activation="sigmoid",
+    use_batchnorm=True,
 ):
     input_ = backbone.input
     x = backbone.output
@@ -118,8 +123,12 @@ def build_unet(
     x = keras.layers.Lambda(lambda x: x)(x)
 
     # extract skip connections
-    skips = ([backbone.get_layer(name=i).output if isinstance(i, str)
-              else backbone.get_layer(index=i).output for i in skip_connection_layers])
+    skips = [
+        backbone.get_layer(name=i).output
+        if isinstance(i, str)
+        else backbone.get_layer(index=i).output
+        for i in skip_connection_layers
+    ]
 
     # building decoder blocks
     for i in range(n_upsample_blocks):
@@ -129,16 +138,17 @@ def build_unet(
         else:
             skip = None
 
-        x = decoder_block(decoder_filters[i], stage=i, use_batchnorm=use_batchnorm)(x, skip)
-
+        x = decoder_block(decoder_filters[i], stage=i, use_batchnorm=use_batchnorm)(
+            x, skip
+        )
 
     x = keras.layers.Conv2D(
         filters=classes,
         kernel_size=(3, 3),
-        padding='same',
+        padding="same",
         use_bias=True,
-        kernel_initializer='glorot_uniform',
-        name='final_conv',
+        kernel_initializer="glorot_uniform",
+        name="final_conv",
     )(x)
     x = keras.layers.Activation(activation, name=activation)(x)
 
@@ -146,20 +156,20 @@ def build_unet(
 
     return model
 
-def Unet(
-        encoder_name="EfficientNetB0",
-        input_shape=(160, 160, 1),
-        classes=1,
-        activation='sigmoid',
-        weights=None,
-        encoder_weights=None,
-        decoder_block_type='upsampling',
-        decoder_filters=(256, 128, 64, 32, 16),
-        decoder_use_batchnorm=True,
-        drop_encoder_rate=0.2,
-        **kwargs
-):
 
+def Unet(
+    encoder_name="EfficientNetB0",
+    input_shape=(160, 160, 1),
+    classes=1,
+    activation="sigmoid",
+    weights=None,
+    encoder_weights=None,
+    decoder_block_type="upsampling",
+    decoder_filters=(256, 128, 64, 32, 16),
+    decoder_use_batchnorm=True,
+    drop_encoder_rate=0.2,
+    **kwargs
+):
 
     model_to_call = getattr(keras.applications, encoder_name)
     base_model = model_to_call(
@@ -168,10 +178,14 @@ def Unet(
         input_shape=input_shape,
         drop_connect_rate=drop_encoder_rate,
     )
-    base_model.trainable = True        
+    base_model.trainable = True
 
-    encoder_features = ('block6a_expand_activation', 'block4a_expand_activation',
-                        'block3a_expand_activation', 'block2a_expand_activation')
+    encoder_features = (
+        "block6a_expand_activation",
+        "block4a_expand_activation",
+        "block3a_expand_activation",
+        "block2a_expand_activation",
+    )
 
     model = build_unet(
         backbone=base_model,
@@ -183,5 +197,5 @@ def Unet(
         n_upsample_blocks=len(decoder_filters),
         use_batchnorm=decoder_use_batchnorm,
     )
-    
+
     return model

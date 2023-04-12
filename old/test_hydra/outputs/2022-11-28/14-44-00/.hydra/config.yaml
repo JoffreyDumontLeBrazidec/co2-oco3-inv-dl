@@ -1,0 +1,4 @@
+db:
+  driver: berlin
+  user: omy
+  password: secret

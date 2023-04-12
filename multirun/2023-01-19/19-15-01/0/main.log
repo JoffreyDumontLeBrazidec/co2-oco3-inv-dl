@@ -1,0 +1,10 @@
+[2023-01-19 19:15:05,148][root][ERROR] - Cannot parse: 1:4: run main.py -m  training.max_epochs=1000 data.path.valid.name=2km_Ber model.dropout_rate=0.2,0.3,0.4
+Traceback (most recent call last):
+  File "/profils_cerea/dumontj/mambaforge/envs/gpu/lib/python3.9/site-packages/lab_black.py", line 218, in format_cell
+    formatted_code = _format_code(cell)
+  File "/profils_cerea/dumontj/mambaforge/envs/gpu/lib/python3.9/site-packages/lab_black.py", line 29, in _format_code
+    return format_str(src_contents=code, mode=FileMode())
+  File "src/black/__init__.py", line 1073, in format_str
+  File "src/black/__init__.py", line 1083, in _format_str_once
+  File "src/black/parsing.py", line 127, in lib2to3_parse
+black.parsing.InvalidInput: Cannot parse: 1:4: run main.py -m  training.max_epochs=1000 data.path.valid.name=2km_Ber model.dropout_rate=0.2,0.3,0.4

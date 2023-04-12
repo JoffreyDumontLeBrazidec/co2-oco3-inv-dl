@@ -1,0 +1,69 @@
+data:
+  split:
+    type: regular
+    train:
+      ratio: 0.85
+  input:
+    chan_0:
+      type: xco2
+      add: ${data.input.chan_0.type}_add
+    chan_1:
+      type: no2
+      add: ${data.input.chan_1.type}_add
+    chan_2:
+      type: None
+      add: ${data.input.chan_2.type}_add
+  output:
+    curve: linear
+    min_w: 0.01
+    max_w: 4
+    param_curve: 1
+  path:
+    directory: /libre/dumontj/coco2/dl-input
+    train:
+      name: 2km_forLip
+      nc: 2d_train_dataset.nc
+    valid:
+      name: 2km_Lip
+      nc: 2d_valid_dataset.nc
+    test:
+      name: ${data.path.train.name}
+      nc: 2d_test_dataset.nc
+training:
+  batch_size: 32
+  learning_rate: 0.001
+  max_epochs: 50
+  init_weights: random
+  optimiser: adam
+callbacks:
+  model_checkpoint:
+    __target__: true
+  learning_rate_monitor:
+    __target__: true
+    factor: 0.5
+    patience: 20
+    min_delta: 0.005
+    min_lr: 5.0e-05
+    cooldown: 0
+  wandb:
+    __target__: true
+dir_res: res
+exp_name: ${now:%Y-%m-%d}_${now:%H-%M-%S}
+seed: 42
+sweep: false
+model:
+  type: segmentation
+  name: Unet_efficientnetb0
+  loss_func: pixel_weighted_cross_entropy
+  dropout_rate: 0.2
+augmentations:
+  rot:
+    range: 180
+  shift:
+    range: 0.2
+  flip:
+    bool: true
+  shear:
+    range: 90
+  zoom:
+    range: 0.2

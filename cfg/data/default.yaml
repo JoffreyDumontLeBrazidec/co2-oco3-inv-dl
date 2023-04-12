@@ -1,0 +1,16 @@
+defaults:
+    - split: default
+    - input: ${model}
+    - output: ${model}
+
+path:    
+    directory: /libre/dumontj/coco2/dl-input
+    train:
+        name: 2km_forBer
+        nc: train_dataset.nc
+    valid: 
+        name: ${data.path.train.name}
+        nc: valid_dataset.nc
+    extra_valid:
+        name: ${data.path.train.name}
+        nc: valid_dataset.nc

@@ -5,45 +5,22 @@
 # project: Prototype system for a Copernicus C02 monitoring service (CoCO2)
 # ----------------------------------------------------------------------------
 
-import numpy as np
 import os
 import sys
-from treeconfigparser import TreeConfigParser
+
+import numpy as np
 import tensorflow_addons as tfa
 from tensorflow import keras
 
-# __________________________________________________________
-# define_optimiser
-def define_optimiser(config):
 
-    if config.get("model.lr.decay.type") == "None":
-        lr = config.get_float("model.lr.value")
-
-    elif config.get("model.lr.decay.type") == "polynomial":
-        lr_max = config.get_float("model.lr.max")
-        lr_min = config.get_float("model.lr.min")
-        decay_steps = config.get_int("model.lr.decay.steps")
-        decay_power = config.get_int("model.lr.decay.power")
-        lr = keras.optimizers.schedules.PolynomialDecay(
-            initial_learning_rate=lr_max,
-            decay_steps=decay_steps,
-            end_learning_rate=lr_min,
-            power=decay_power,
-        )
-
-    else:
-        print("Learning rate of optimiser not defined")
-        sys.exit()
+def define_optimiser(optimiser_name: str = "adam", learning_rate: float = 1e-3):
+    """Define optimiser with learning rate."""
 
     dicOpt = {
-        "adam": keras.optimizers.Adam(learning_rate=lr),
-        "yogi": tfa.optimizers.Yogi(learning_rate=lr),
+        "adam": keras.optimizers.Adam(learning_rate=learning_rate),
+        "yogi": tfa.optimizers.Yogi(learning_rate=learning_rate),
     }
 
-    optimiser_name = config.get("model.optimiser")
     opt = dicOpt[optimiser_name]
 
     return opt
-
-
-# __________________________________________________________

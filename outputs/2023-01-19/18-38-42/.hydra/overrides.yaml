@@ -1,0 +1,2 @@
+- training.max_epochs=1000
+- data.path.valid.name=2km_Ber

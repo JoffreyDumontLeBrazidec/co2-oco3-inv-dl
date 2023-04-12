@@ -1,0 +1,2 @@
+[2023-01-24 06:13:45,252][absl][WARNING] - Found untraced functions such as _jit_compiled_convolution_op, _jit_compiled_convolution_op, _jit_compiled_convolution_op, _jit_compiled_convolution_op, _jit_compiled_convolution_op while saving (showing 5 of 81). These functions will not be directly callable after loading.
+[2023-01-24 06:13:56,175][tensorflow][INFO] - Assets written to: /cerea_raid/users/dumontj/dev/coco2/dl/wandb/run-20230119_192813-1chheagd/files/model-best/assets
