@@ -7,14 +7,19 @@ exp_name: seg_ber
 data:
     path:
         train:
-            name: 2km_forBer
+            name: 2km_forBer_2
         valid:
+            name: 2km_forBer_2
+        extra_valid:
             name: 2km_Ber
     input:
-        chan_1: u_wind
-        chan_2: v_wind
-        chan_3: no2
+        chan_1: None
+        chan_2: None
+        chan_3: None
         chan_4: None
+model:
+    name:
+        Unet_efficientnetb0
 augmentations:
     shift:
         range: 0.2
@@ -27,7 +32,7 @@ augmentations:
     zoom:
         range: 0.2
 training:
-    max_epochs: 500
+    max_epochs: 1000
 
    
 sweep: true

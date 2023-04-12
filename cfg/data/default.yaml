@@ -1,12 +1,13 @@
 defaults:
-    - split: default
+    - init: default
     - input: ${model}
     - output: ${model}
+
 
 path:    
     directory: /libre/dumontj/coco2/dl-input
     train:
-        name: 2km_forBer
+        name: 2km_forLip
         nc: train_dataset.nc
     valid: 
         name: ${data.path.train.name}
@@ -14,3 +15,4 @@ path:
     extra_valid:
         name: ${data.path.train.name}
         nc: valid_dataset.nc
+

@@ -332,18 +332,18 @@ class Output_train:
 class Data_train:
     """Object for containing Input and Output data and all other informations."""
 
-    path_train_nc: str
-    path_valid_nc: str
-    path_extra_valid_nc: str = "None"
+    path_train_ds: str
+    path_valid_ds: str
+    path_extra_valid_ds: str = "None"
 
     def __post_init__(self):
 
-        self.ds_train = xr.open_dataset(self.path_train_nc)
-        self.ds_valid = xr.open_dataset(self.path_valid_nc)
-        if self.path_extra_valid_nc != "None":
-            self.ds_extra_valid = xr.open_dataset(self.path_extra_valid_nc)
+        self.ds_train = xr.open_dataset(self.path_train_ds)
+        self.ds_valid = xr.open_dataset(self.path_valid_ds)
+        if self.path_extra_valid_ds != "None":
+            self.ds_extra_valid = xr.open_dataset(self.path_extra_valid_ds)
         else:
-            self.ds_extra_valid = xr.open_dataset(self.path_valid_nc)
+            self.ds_extra_valid = xr.open_dataset(self.path_valid_ds)
 
     def prepare_input(
         self,

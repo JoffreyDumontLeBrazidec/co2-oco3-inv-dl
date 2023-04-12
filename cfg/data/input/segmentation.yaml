@@ -1,3 +1,4 @@
+__target__: Data.Data_train.prepare_input
 chan_0: xco2
 chan_1: no2
 chan_2: None

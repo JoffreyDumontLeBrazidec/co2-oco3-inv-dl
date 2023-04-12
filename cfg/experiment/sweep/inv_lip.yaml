@@ -28,6 +28,7 @@ hydra:
     params:
         data.input.chan_4: None,bool_perf_seg,no2
         model.name: essential 
+        model.loss_func: MeanAbsolutePercentageError
   sweep:
     dir: ${dir_res}
     subdir: ${exp_name}_sweep/${hydra.job.num}

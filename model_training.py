@@ -13,6 +13,7 @@ from typing import Any
 import numpy as np
 import tensorflow as tf
 from hydra import compose, initialize
+from hydra.utils import call, instantiate
 from omegaconf import DictConfig, OmegaConf
 from tensorflow import keras
 
@@ -79,23 +80,8 @@ class Model_training_manager:
     def prepare_data(self, cfg: DictConfig) -> None:
         """Prepare Data inputs to the neural network and outputs (=labels, targets)."""
 
-        self.data = Data_train(
-            os.path.join(
-                cfg.data.path.directory,
-                cfg.data.path.train.name,
-                cfg.data.path.train.nc,
-            ),
-            os.path.join(
-                cfg.data.path.directory,
-                cfg.data.path.valid.name,
-                cfg.data.path.valid.nc,
-            ),
-            os.path.join(
-                cfg.data.path.directory,
-                cfg.data.path.extra_valid.name,
-                cfg.data.path.extra_valid.nc,
-            ),
-        )
+        print(cfg.data.init.path_train_ds)
+        self.data = instantiate(cfg.data.init)
 
         if cfg.model.type == "segmentation":
             self.data.prepare_input(

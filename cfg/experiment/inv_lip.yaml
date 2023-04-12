@@ -16,7 +16,7 @@ data:
         chan_1: xco2_prec
         chan_2: v_wind
         chan_3: u_wind
-        chan_4: None,bool_perf_seg,no2
+        chan_4: weighted_plume
 model:
     name:
         essential
