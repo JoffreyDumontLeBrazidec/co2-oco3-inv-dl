@@ -171,9 +171,13 @@ class Model_training_manager:
             generator = generators.ScaleDataGen(
                 self.data.x.train,
                 self.data.x.plumes_train,
+                self.data.x.xco2_back_train,
+                self.data.x.xco2_alt_anthro_train,
                 self.data.y.train,
                 self.data.x.scale_bool,
                 self.data.x.fields_input_shape,
+                plume_scaling_min=cfg.augmentations.plume_scaling_min,
+                plume_scaling_max=cfg.augmentations.plume_scaling_max,                
             )
         else:
             sys.exit()

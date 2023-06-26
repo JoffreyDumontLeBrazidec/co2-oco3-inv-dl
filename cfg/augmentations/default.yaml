@@ -9,3 +9,5 @@ shear:
     range: 90
 zoom:
     range: 0.2
+plume_scaling_max: 2
+plume_scaling_min: 0.25

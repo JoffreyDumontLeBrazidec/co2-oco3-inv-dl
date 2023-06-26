@@ -24,17 +24,14 @@ def initiate_wb(cfg: DictConfig) -> None:
         config_wb = {
             "train": cfg.data.path.train.name,
             "valid": cfg.data.path.valid.name,
-            "model": cfg.model.name,
-            "rot": cfg.augmentations.rot.range,
-            "flip": cfg.augmentations.flip.bool,
-            "shear": cfg.augmentations.shear.range,
-            "zoom": cfg.augmentations.zoom.range,
-            "dropout_rate": cfg.model.dropout_rate,
+            "model": cfg.model.name, 
             "chan_0": cfg.data.input.chan_0,
             "chan_1": cfg.data.input.chan_1,
             "chan_2": cfg.data.input.chan_2,
             "chan_3": cfg.data.input.chan_3,
             "chan_4": cfg.data.input.chan_4,
+            "p_scal_min": cfg.augmentations.plume_scaling_min,
+            "p_scal_max": cfg.augmentations.plume_scaling_max,
         }
 
         if cfg.sweep:

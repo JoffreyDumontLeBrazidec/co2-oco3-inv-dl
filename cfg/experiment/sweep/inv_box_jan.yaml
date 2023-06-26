@@ -3,14 +3,14 @@
 defaults:
   - override /model: inversion
 
-exp_name: inv_box
+exp_name: inv_box_jan
 
 data:
     path:
         train:
-            name: 2km_forBox_2
+            name: 2km_forBox_Jan
         valid:
-            name: 2km_forBox_2
+            name: 2km_Jan
         extra_valid:
             name: 2km_Box
     input:
@@ -19,15 +19,17 @@ data:
         chan_4: None
 
 training:
-    max_epochs: 1000
+    max_epochs: 200
 
 hydra:
   mode: MULTIRUN
   sweeper:
     params:
-        data.input.chan_3: None,no2,seg_pred_no2
-        model.name: essential_2,essential_3
-        model.loss_func: MeanAbsolutePercentageError,MeanAbsolutePercentageError,MeanAbsolutePercentageError
+        data.input.chan_3: no2,seg_pred_no2
+        model.name: essential
+        model.loss_func: MeanAbsolutePercentageError,MeanAbsolutePercentageError,MeanAbsoluteError
+        augmentations.plume_scaling_max: 3,4,5,6,7,8
+        augmentations.plume_scaling_min: 0.5,1
   sweep:
     dir: ${dir_res}
     subdir: ${exp_name}_sweep/${hydra.job.num}

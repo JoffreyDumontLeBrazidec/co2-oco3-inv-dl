@@ -17,12 +17,20 @@ data:
         chan_1: xco2_prec
         chan_2: v_wind
         chan_3: u_wind
-        chan_4: weighted_plume
-model:
-    name:
-        essential
+
 training:
     max_epochs: 1000
 
-   
+
+hydra:
+  mode: MULTIRUN
+  sweeper:
+    params:
+        data.input.chan_4: seg_pred_no2,None,weighted_plume,no2
+        model.name: essential 
+        model.loss_func: MeanAbsoluteError,MeanAbsolutePercentageError
+  sweep:
+    dir: ${dir_res}
+    subdir: ${exp_name}_sweep/${hydra.job.num}
+    
 sweep: true

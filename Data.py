@@ -19,26 +19,16 @@ from sklearn import preprocessing
 from include.loss import calculate_weighted_plume, pixel_weighted_cross_entropy
 
 
-def get_scaler(dir_res: str) -> preprocessing.StandardScaler:
-    """Get scaler (fit on training data) for evaluation."""
-    scaler = joblib.load(os.path.join(dir_res, "scaler.save"))
-    return scaler
-
-
 def get_xco2_noisy(ds: xr.Dataset, noise_level: float = 0.7):
     """Return noisy xco2 field related to ds."""
-    xco2 = np.expand_dims(ds.xco2.values, -1)
-    noise = noise_level * np.random.randn(*xco2.shape)
-    xco2 = xco2 + noise
+    xco2 = np.expand_dims(ds.xco2_noisy.values, -1)
     return xco2
 
 
 def get_xco2_noisy_prec(ds: xr.Dataset, noise_level: float = 0.7):
     """Return noisy xco2 field related to ds at the previous time."""
-    xco2 = np.concatenate((ds.xco2.values[0:1], ds.xco2.values[0:-1]))
-    xco2 = np.expand_dims(ds.xco2.values, -1)
-    noise = noise_level * np.random.randn(*xco2.shape)
-    xco2 = xco2 + noise
+    xco2 = np.concatenate((ds.xco2_noisy.values[0:1], ds.xco2_noisy.values[0:-1]))
+    xco2 = np.expand_dims(xco2, -1)
     return xco2
 
 
@@ -55,9 +45,27 @@ def get_xco2_noiseless_prec(ds: xr.Dataset, noise_level: float = 0.7):
 
 def get_no2_noisy(ds: xr.Dataset):
     """Return noisy no2 field related to ds."""
-    no2 = np.expand_dims(ds.no2.values, -1)
-    no2_noisy = no2 + np.random.randn(*no2.shape) * no2
-    return no2_noisy
+    no2 = np.expand_dims(ds.no2_noisy.values, -1)
+    return no2
+
+
+def get_no2_noisy_prec(ds: xr.Dataset):
+    """Return noisy no2 field related to ds."""
+    no2 = np.concatenate((ds.no2_noisy.values[0:1], ds.no2_noisy.values[0:-1]))
+    return np.expand_dims(no2, -1)
+
+
+def get_seg_pred_no2(ds: xr.Dataset) -> np.ndarray:
+    """Return no2 model segmentations from ds."""
+    return np.expand_dims(ds.seg_pred_no2.values, -1)
+
+
+def get_seg_pred_no2_prec(ds: xr.Dataset) -> np.ndarray:
+    """Return no2 model segmentations from ds."""
+    seg_pred_no2 = np.concatenate(
+        (ds.seg_pred_no2.values[0:1], ds.seg_pred_no2.values[0:-1])
+    )
+    return np.expand_dims(seg_pred_no2, -1)
 
 
 def get_no2_noiseless(ds: xr.Dataset):
@@ -68,6 +76,23 @@ def get_no2_noiseless(ds: xr.Dataset):
 def get_u_wind(ds: xr.Dataset) -> np.ndarray:
     """Return u wind related to ds."""
     return np.expand_dims(ds.u.values, -1)
+
+
+def get_u_wind_prec(ds: xr.Dataset) -> np.ndarray:
+    """Return u wind related to ds."""
+    u = np.concatenate((ds.u.values[0:1], ds.u.values[0:-1]))
+    return np.expand_dims(u, -1)
+
+
+def get_v_wind(ds: xr.Dataset) -> np.ndarray:
+    """Return u wind related to ds."""
+    return np.expand_dims(ds.v.values, -1)
+
+
+def get_v_wind_prec(ds: xr.Dataset) -> np.ndarray:
+    """Return v wind related to ds."""
+    v = np.concatenate((ds.v.values[0:1], ds.v.values[0:-1]))
+    return np.expand_dims(v, -1)
 
 
 def get_plume(ds: xr.Dataset) -> np.ndarray:
@@ -81,14 +106,33 @@ def get_plume_prec(ds: xr.Dataset) -> np.ndarray:
     return np.expand_dims(plume, -1)
 
 
+def get_xco2_back(ds: xr.Dataset) -> np.ndarray:
+    """Return xco2 back from ds."""
+    return np.expand_dims(ds.xco2_back.values, -1)
+
+
+def get_xco2_back_prec(ds: xr.Dataset) -> np.ndarray:
+    """Return xco2_back from ds at the previous time."""
+    xco2_back = np.concatenate((ds.xco2_back.values[0:1], ds.xco2_back.values[0:-1]))
+    return np.expand_dims(xco2_back, -1)
+
+
+def get_xco2_alt_anthro(ds: xr.Dataset) -> np.ndarray:
+    """Return xco2_alt_anthro back from ds."""
+    return np.expand_dims(ds.xco2_alt_anthro.values, -1)
+
+
+def get_xco2_alt_anthro_prec(ds: xr.Dataset) -> np.ndarray:
+    """Return xco2_alt_anthro from ds at the previous time."""
+    xco2_alt_anthro = np.concatenate(
+        (ds.xco2_alt_anthro.values[0:1], ds.xco2_alt_anthro.values[0:-1])
+    )
+    return np.expand_dims(xco2_alt_anthro, -1)
+
+
 def get_bool_perf_seg(ds: xr.Dataset) -> np.ndarray:
     """Return boolean perfect segmentations from ds."""
     return np.expand_dims(ds.bool_perf_seg.values, -1)
-
-
-def get_v_wind(ds: xr.Dataset) -> np.ndarray:
-    """Return u wind related to ds."""
-    return np.expand_dims(ds.v.values, -1)
 
 
 def get_emiss(ds: xr.Dataset, N_hours_prec: int) -> np.ndarray:
@@ -135,46 +179,6 @@ def get_weighted_plume_prec(
 
 
 @dataclass
-class Segmentations_pred:
-    """To return segmentation predictions"""
-
-    dir_seg_models: str
-    name_seg_model: str
-    ds: xr.Dataset
-    model_optimiser: str = "adam"
-    model_loss = pixel_weighted_cross_entropy
-    noise_level: float = 0.7
-
-    def __post_init__(self):
-        self.model = tf.keras.models.load_model(
-            os.path.join(
-                self.dir_seg_models, f"{self.name_seg_model}", "weights_cp_best.h5"
-            ),
-            compile=False,
-        )
-        self.model.compile(self.model_optimiser, loss=self.model_loss)
-        self.scaler = get_scaler(os.path.join(self.dir_seg_models, self.name_seg_model))
-
-    def get_seg_predictions(self) -> np.ndarray:
-        """Return segmentation predictions from Model on Dataset."""
-        xco2_noisy = get_xco2_noisy(self.ds, self.noise_level)
-        if self.model.layers[0].input_shape[0][-1] == 1:
-            inputs = xco2_noisy
-        elif self.model.layers[0].input_shape[0][-1] == 2:
-            no2_noisy = get_no2_noisy(self.ds)
-            inputs = np.concatenate((xco2_noisy, no2_noisy), axis=-1)
-        else:
-            sys.exit()
-
-        inputs = np.array(
-            self.scaler.transform(inputs.reshape(-1, inputs.shape[-1]))
-        ).reshape(inputs.shape)
-        inputs = tf.convert_to_tensor(inputs, float)
-        x_seg = tf.convert_to_tensor(self.model.predict(inputs), float)
-        return np.array(x_seg)
-
-
-@dataclass
 class Input_filler:
     """Fill chans for Input_train and Input_eval."""
 
@@ -203,6 +207,14 @@ class Input_filler:
             data_chan = get_plume(ds)
         elif chan == "plume_prec":
             data_chan = get_plume_prec(ds)
+        elif chan == "xco2_back":
+            data_chan = get_xco2_back(ds)
+        elif chan == "xco2_back_prec":
+            data_chan = get_xco2_back_prec(ds)
+        elif chan == "xco2_alt_anthro":
+            data_chan = get_xco2_alt_anthro(ds)
+        elif chan == "xco2_alt_anthro_prec":
+            data_chan = get_xco2_alt_anthro_prec(ds)
         elif chan == "bool_perf_seg":
             data_chan = get_bool_perf_seg(ds)
         elif chan == "weighted_plume":
@@ -211,13 +223,20 @@ class Input_filler:
             data_chan = get_weighted_plume_prec(ds)
         elif chan == "no2":
             data_chan = get_no2_noisy(ds)
-        elif chan.startswith("seg"):
-            seg_cont = Segmentations_pred(self.dir_seg_models, chan, ds=ds)
-            data_chan = seg_cont.get_seg_predictions()
+        elif chan == "no2_prec":
+            data_chan = get_no2_noisy_prec(ds)
+        elif chan == "seg_pred_no2":
+            data_chan = get_seg_pred_no2(ds)
+        elif chan == "seg_pred_no2_prec":
+            data_chan = get_seg_pred_no2_prec(ds)
         elif chan == "u_wind":
             data_chan = get_u_wind(ds)
         elif chan == "v_wind":
             data_chan = get_v_wind(ds)
+        elif chan == "u_wind_prec":
+            data_chan = get_u_wind_prec(ds)
+        elif chan == "v_wind_prec":
+            data_chan = get_v_wind_prec(ds)
         else:
             sys.exit()
 
@@ -294,13 +313,21 @@ class Input_train:
         """Prepare for scaling. Get plume in independant array and boolean channels."""
         self.scale_bool = [False] * len(self.list_chans)
         self.plumes_train = {}
+        self.xco2_back_train = {}
+        self.xco2_alt_anthro_train = {}
         for idx, chan in enumerate(self.list_chans):
             if chan.startswith("xco2"):
                 self.scale_bool[idx] = True
                 if "prec" in chan:
                     self.plumes_train[idx] = get_plume_prec(self.ds_train)
+                    self.xco2_back_train[idx] = get_xco2_back_prec(self.ds_train)
+                    self.xco2_alt_anthro_train[idx] = get_xco2_alt_anthro_prec(
+                        self.ds_train
+                    )
                 else:
                     self.plumes_train[idx] = get_plume(self.ds_train)
+                    self.xco2_back_train[idx] = get_xco2_back(self.ds_train)
+                    self.xco2_alt_anthro_train[idx] = get_xco2_alt_anthro(self.ds_train)
 
 
 @dataclass

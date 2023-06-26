@@ -22,7 +22,7 @@ def linear_regressor(input_shape: list):
     return core_model
 
 
-def essential_regressor(input_shape:list):
+def essential_regressor(input_shape: list):
     """Essential regressor."""
     inputs = tf.keras.layers.Input(shape=input_shape)
 
@@ -43,6 +43,57 @@ def essential_regressor(input_shape:list):
     x = tf.keras.layers.MaxPooling2D((2, 2), padding="valid", strides=2)(x)
 
     x = tf.keras.layers.Conv2D(64, (3, 3), activation="elu", strides=1)(x)
+    x = tf.keras.layers.Dropout(0.2)(x)
+    x = tf.keras.layers.Conv2D(64, (3, 3), activation="elu", strides=1)(x)
+    x = tf.keras.layers.MaxPooling2D((2, 2), padding="valid", strides=2)(x)
+    x = tf.keras.layers.Flatten()(x)
+    core_model = tf.keras.Model(inputs, x)
+    return core_model
+
+
+def essential_regressor_2(input_shape: list):
+    """Essential regressor 2."""
+    inputs = tf.keras.layers.Input(shape=input_shape)
+
+    x = tf.keras.layers.Conv2D(16, (3, 3), activation="elu", strides=1)(inputs)
+    x = tf.keras.layers.Dropout(0.1)(x)
+    x = tf.keras.layers.Conv2D(32, (3, 3), activation="elu", strides=1)(x)
+    x = tf.keras.layers.MaxPooling2D((2, 2), padding="valid", strides=2)(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+
+    x = tf.keras.layers.Conv2D(32, (3, 3), activation="elu", strides=1)(x)
+    x = tf.keras.layers.Dropout(0.2)(x)
+
+    x = tf.keras.layers.Conv2D(32, (3, 3), activation="elu", strides=1)(x)
+    x = tf.keras.layers.Dropout(0.2)(x)
+    x = tf.keras.layers.Conv2D(32, (3, 3), activation="elu", strides=1)(x)
+    x = tf.keras.layers.MaxPooling2D((2, 2), padding="valid", strides=2)(x)
+
+    x = tf.keras.layers.Conv2D(64, (3, 3), activation="elu", strides=1)(x)
+    x = tf.keras.layers.Dropout(0.2)(x)
+    x = tf.keras.layers.Conv2D(128, (3, 3), activation="elu", strides=1)(x)
+    x = tf.keras.layers.MaxPooling2D((2, 2), padding="valid", strides=2)(x)
+    x = tf.keras.layers.Flatten()(x)
+    core_model = tf.keras.Model(inputs, x)
+    return core_model
+
+
+def essential_regressor_3(input_shape: list):
+    """Essential regressor 3."""
+    inputs = tf.keras.layers.Input(shape=input_shape)
+
+    x = tf.keras.layers.Conv2D(16, (3, 3), activation="elu", strides=1)(inputs)
+    x = tf.keras.layers.Dropout(0.1)(x)
+    x = tf.keras.layers.Conv2D(16, (3, 3), activation="elu", strides=1)(x)
+    x = tf.keras.layers.MaxPooling2D((2, 2), padding="valid", strides=2)(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+
+    x = tf.keras.layers.Conv2D(16, (3, 3), activation="elu", strides=1)(x)
+    x = tf.keras.layers.Dropout(0.2)(x)
+    x = tf.keras.layers.Conv2D(32, (3, 3), activation="elu", strides=1)(x)
+    x = tf.keras.layers.MaxPooling2D((2, 2), padding="valid", strides=2)(x)
+
+    x = tf.keras.layers.Conv2D(32, (3, 3), activation="elu", strides=1)(x)
     x = tf.keras.layers.Dropout(0.2)(x)
     x = tf.keras.layers.Conv2D(64, (3, 3), activation="elu", strides=1)(x)
     x = tf.keras.layers.MaxPooling2D((2, 2), padding="valid", strides=2)(x)

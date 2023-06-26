@@ -3,19 +3,19 @@
 defaults:
   - override /model: segmentation
 
-exp_name: seg_lip_no_no2
+exp_name: seg_tur_3
 data:
     path:
         train:
-            name: 2km_forLip_2
+            name: 2km_forTur_2
         valid:
-            name: 2km_forLip_2
+            name: 2km_forTur_2
         extra_valid:
-            name: 2km_Lip
+            name: 2km_Tur
     input:
-        chan_1: u_wind
-        chan_2: v_wind
-        chan_3: xco2_prec
+        chan_1: None
+        chan_2: None
+        chan_3: None
         chan_4: None
 model:
     name:
@@ -32,7 +32,7 @@ augmentations:
     zoom:
         range: 0.2
 training:
-    max_epochs: 500
+    max_epochs: 1000
 
    
 sweep: true

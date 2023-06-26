@@ -13,7 +13,10 @@ import tensorflow as tf
 from tensorflow import keras
 
 from models.my_efficientnet import EfficientNet
-from models.my_essential_inversors import essential_regressor, linear_regressor
+from models.my_essential_inversors import (essential_regressor,
+                                           essential_regressor_2,
+                                           essential_regressor_3,
+                                           linear_regressor)
 from models.my_mobilenet import MobileNet
 from models.my_shufflenet import ShuffleNet
 from models.my_squeezenet import SqueezeNet
@@ -59,7 +62,7 @@ def get_top_layers(classes: int, choice_top: str = "linear"):
             )(x)
         elif choice_top == "linear":
             outputs = tf.keras.layers.Dense(classes, name="regressor")(x)
-        elif choice_top == "essential":
+        elif choice_top.startswith("essential"):
             x = tf.keras.layers.Dense(1)(x)
             outputs = tf.keras.layers.LeakyReLU(alpha=0.3)(x)
         else:
@@ -88,6 +91,10 @@ def get_core_model(
         core_model = linear_regressor(input_shape)
     elif name == "essential":
         core_model = essential_regressor(input_shape)
+    elif name == "essential_2":
+        core_model = essential_regressor_2(input_shape)
+    elif name == "essential_3":
+        core_model = essential_regressor_3(input_shape)
     elif name == "squeezenet":
         core_model = SqueezeNet(input_shape, dropout_rate, compression=0.4)
     elif name == "mobilenet":

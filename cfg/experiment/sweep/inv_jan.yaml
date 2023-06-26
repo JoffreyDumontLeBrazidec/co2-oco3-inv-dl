@@ -3,33 +3,32 @@
 defaults:
   - override /model: inversion
 
-exp_name: inv_lip
+exp_name: inv_jan
 
 data:
     path:
         train:
-            name: 2km_forLip_2
+            name: 2km_forJan_2
         valid:
-            name: 2km_forLip_2
+            name: 2km_Box
         extra_valid:
-            name: 2km_Lip
+            name: 2km_Jan
     input:
-        chan_0: xco2_noisy
-        chan_1: u_wind 
+        chan_1: u_wind
         chan_2: v_wind
         chan_4: None
 
 training:
-    max_epochs: 500
+    max_epochs: 200
 
 hydra:
   mode: MULTIRUN
   sweeper:
     params:
-        data.input.chan_3: no2,seg_pred_no2,None
+        data.input.chan_3: no2,seg_pred_no2
         model.name: essential
-        model.loss_func: MeanAbsolutePercentageError,MeanAbsolutePercentageError,MeanAbsolutePercentageError
-        augmentations.plume_scaling_max: 3
+        model.loss_func: MeanAbsolutePercentageError,MeanAbsolutePercentageError,MeanAbsoluteError
+        augmentations.plume_scaling_max: 3,4,5
         augmentations.plume_scaling_min: 0.5
   sweep:
     dir: ${dir_res}

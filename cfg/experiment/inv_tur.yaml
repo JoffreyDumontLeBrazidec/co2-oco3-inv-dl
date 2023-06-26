@@ -3,21 +3,20 @@
 defaults:
   - override /model: inversion
 
-exp_name: inv_lip
-
+exp_name: inv_tur
 data:
     path:
         train:
-            name: 2km_forLip_2
+            name: 2km_forTur_2
         valid:
-            name: 2km_forLip_2
+            name: 2km_forTur_2
         extra_valid:
-            name: 2km_Lip
+            name: 2km_Tur
     input:
-        chan_1: xco2_prec
+        chan_1: xco2_prec 
         chan_2: v_wind
         chan_3: u_wind
-        chan_4: weighted_plume
+        chan_4: seg_pred_no2
 model:
     name:
         essential

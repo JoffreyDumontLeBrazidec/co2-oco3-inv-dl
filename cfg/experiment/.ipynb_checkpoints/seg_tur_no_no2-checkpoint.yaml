@@ -3,15 +3,15 @@
 defaults:
   - override /model: segmentation
 
-exp_name: seg_lip_no_no2
+exp_name: seg_tur_no_no2
 data:
     path:
         train:
-            name: 2km_forLip_2
+            name: 2km_forTur_2
         valid:
-            name: 2km_forLip_2
+            name: 2km_forTur_2
         extra_valid:
-            name: 2km_Lip
+            name: 2km_Tur
     input:
         chan_1: u_wind
         chan_2: v_wind

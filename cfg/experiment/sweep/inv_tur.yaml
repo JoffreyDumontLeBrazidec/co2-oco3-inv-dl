@@ -3,16 +3,16 @@
 defaults:
   - override /model: inversion
 
-exp_name: inv_box
+exp_name: inv_tur
 
 data:
     path:
         train:
-            name: 2km_forBox_2
+            name: 2km_forTur_2
         valid:
-            name: 2km_forBox_2
+            name: 2km_forTur_2
         extra_valid:
-            name: 2km_Box
+            name: 2km_Tur
     input:
         chan_1: u_wind
         chan_2: v_wind
@@ -21,12 +21,13 @@ data:
 training:
     max_epochs: 1000
 
+
 hydra:
   mode: MULTIRUN
   sweeper:
     params:
-        data.input.chan_3: None,no2,seg_pred_no2
-        model.name: essential_2,essential_3
+        data.input.chan_3: seg_pred_no2,None,no2
+        model.name: essential,essential_2,essential_3
         model.loss_func: MeanAbsolutePercentageError,MeanAbsolutePercentageError,MeanAbsolutePercentageError
   sweep:
     dir: ${dir_res}
