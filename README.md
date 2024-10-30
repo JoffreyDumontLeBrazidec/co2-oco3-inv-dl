@@ -1,8 +1,6 @@
 # Inversion of CO2 plumes - OCO3-SAM and synthetic data
 
 Official repository for the paper "Quantification of CO2 hotspot emissions from OCO-3 SAM CO2 satellite images using deep learning methods" submitted to "Geoscientific Model Development".
-
-%$$$$$[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10100338.svg)](https://doi.org/10.5281/zenodo.10100338)
  
 This project introduces the application of deep learning CO2
 
