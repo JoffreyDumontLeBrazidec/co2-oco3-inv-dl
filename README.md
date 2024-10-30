@@ -2,8 +2,6 @@
 
 Official repository for the paper "Quantification of CO2 hotspot emissions from OCO-3 SAM CO2 satellite images using deep learning methods" submitted to "Geoscientific Model Development".
  
-This project introduces the application of deep learning CO2
-
 This project presents the development and application of a deep learning-based method for inverting CO2 atmospheric plumes
 from power plants using satellite imagery of the CO2 total column mixing ratios (XCO2).
 
