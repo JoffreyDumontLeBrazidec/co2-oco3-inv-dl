@@ -8,9 +8,9 @@ from power plants using satellite imagery of the CO2 total column mixing ratios 
 Our scripts and modules are written in Python, using Tensorflow as the deep learning framework.
 
 To employ these scripts and train CNN models, download the datasets of fields and plumes from [inv-zenodo](https://doi.org/10.5281/zenodo.12788520).
-For direct testing, weights of trained models can also be obtained from [inv-zenodo-weights](https://doi.org/10.5281/zenodo.12788520).
+For direct testing, weights of trained models can also be obtained from [inv-zenodo](https://doi.org/10.5281/zenodo.12788520).
 
-After data collection/generation, 'main.py` is used to train the CNN with config constructed from hydra.
+After data collection/generation, 'main.py` is used to train the CNN (config constructed with hydra).
 
 For any queries, do not hesitate to reach out.
 
