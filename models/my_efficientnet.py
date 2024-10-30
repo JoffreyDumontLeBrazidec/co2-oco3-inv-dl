@@ -291,7 +291,6 @@ def EfficientNet_constructor(
     input_shape=None,
     **kwargs
 ):
-
     input_shape = _obtain_input_shape(
         input_shape,
         default_size=default_resolution,
@@ -309,7 +308,7 @@ def EfficientNet_constructor(
     x = tf.keras.layers.Conv2D(
         round_filters(32, width_coefficient, depth_divisor),
         3,
-        strides=(2, 2),
+        strides=(1, 1),
         padding="same",
         use_bias=False,
         kernel_initializer=CONV_KERNEL_INITIALIZER,
@@ -390,7 +389,7 @@ def EfficientNet(
     scaling_coefficient=1.0,
     weights=None,
     input_tensor=None,
-    input_shape=None,
+    input_shape=[64, 64, 3],
     pooling=None,
     classes=1,
     dropout_rate=0.2,
@@ -399,7 +398,7 @@ def EfficientNet(
     return EfficientNet_constructor(
         width_coefficient=scaling_coefficient,
         depth_coefficient=scaling_coefficient,
-        default_resolution=64,
+        default_resolution=input_shape[1],
         dropout_rate=dropout_rate,
         model_name="efficientnetb0",
         include_top=include_top,

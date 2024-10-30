@@ -1,5 +1,0 @@
-- augmentations.rot.range=0
-- augmentations.flip.bool=false
-- augmentations.shear.range=0
-- augmentations.zoom.range=0
-- training.max_epochs=10

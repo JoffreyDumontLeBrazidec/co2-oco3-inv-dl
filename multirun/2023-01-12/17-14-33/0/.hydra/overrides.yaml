@@ -1,4 +1,0 @@
-- model=segmentation
-- training.max_epochs=50
-- data.output.max_w=0.01
-- data.output.curve=linear

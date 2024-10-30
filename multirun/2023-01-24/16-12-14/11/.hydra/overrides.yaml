@@ -1,7 +1,0 @@
-- training.max_epochs=1
-- data.path.train.name=2km_forBer
-- data.path.valid.name=2km_Ber
-- model.dropout_rate=0.2
-- augmentations.shift.range=0.2
-- augmentations.rot.range=180
-- augmentations.shear.range=180

@@ -1,0 +1,45 @@
+# @package _global_
+
+defaults:
+  - override /model: inversion
+
+exp_name: inv_oco3_32
+libre_folder: ${exp_name}
+data:
+    path:
+        train:
+            name: 2km_forOco3_32
+        valid:
+            name: 2km_Dolo_32_beta_distribution_mapping
+        valid_2:
+            name: 2km_Dolo_32
+        extra_valid:
+            name: 2km_Dolo_32_beta_distribution_mapping
+    input:
+        chan_0: xco2
+        chan_1: u_wind 
+        chan_2: v_wind
+        chan_4: None
+
+training:
+    max_epochs: 500
+
+hydra:
+  mode: MULTIRUN
+  sweeper:
+    params:
+        data.input.chan_3: None
+        model.name: essential 
+        training.loss_func: MeanSquaredError, MeanAbsoluteError
+        data.input.clouds_threshold: 0.74, 0.5
+        augmentations.scaling_method: uniform_distribution_mapping
+        augmentations.xco2_emiss_max: 40
+        data.input.timedate: True
+        training.init_lr: 0.001
+        model.dropout_rate: 0.2
+
+  sweep:
+    dir: ${dir_res}
+    subdir: ${libre_folder}_sweep/${hydra.job.num}
+    
+sweep: true

@@ -1,7 +1,0 @@
-- data.path.train.name=2km_forLip
-- data.path.valid.name=2km_Lip
-- training.max_epochs=300
-- data.input.chan_2=u_wind
-- data.input.chan_3=v_wind
-- model.type=segmentation
-- augmentations.shift.range=0.2

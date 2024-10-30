@@ -1,3 +1,0 @@
-[2023-01-12 17:30:06,748][wandb.jupyter][ERROR] - Failed to detect the name of this notebook, you can set it manually with the WANDB_NOTEBOOK_NAME environment variable to enable code saving.
-[2023-01-12 17:30:40,265][absl][WARNING] - Found untraced functions such as _jit_compiled_convolution_op, _jit_compiled_convolution_op, _jit_compiled_convolution_op, _jit_compiled_convolution_op, _jit_compiled_convolution_op while saving (showing 5 of 23). These functions will not be directly callable after loading.
-[2023-01-12 17:30:41,529][tensorflow][INFO] - Assets written to: /cerea_raid/users/dumontj/dev/coco2/dl/wandb/run-20230112_173009-2xv327ay/files/model-best/assets

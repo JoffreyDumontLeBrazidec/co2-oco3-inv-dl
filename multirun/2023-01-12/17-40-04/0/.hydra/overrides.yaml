@@ -1,5 +1,0 @@
-- data.path.train.name=2km_S_pBer
-- model=segmentation
-- training.max_epochs=50
-- data.output.max_w=4
-- data.output.curve=linear

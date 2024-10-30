@@ -1,0 +1,11 @@
+# @package _global_
+
+defaults:
+  - override /model: inversion
+
+exp_name: bug_correction
+training:
+    max_epochs: 1
+
+   
+sweep: False

@@ -16,6 +16,12 @@ import tensorflow as tf
 from omegaconf import DictConfig, OmegaConf
 from sklearn import preprocessing
 
+from models.preprocessing import (
+    CloudsLayer,
+    ConditionalNoiseLayer,
+    TrainingTimeNormalization,
+)
+
 
 class Saver:
     """Saver of all results relevant to CNN model training experience."""
@@ -26,6 +32,22 @@ class Saver:
     def save_model_and_weights(self, model: tf.keras.Model):
         """Save model and weights using keras built_in functions."""
         model.save("w_last.h5")
+
+    def save_norm_layer(
+        self, norm_layer: TrainingTimeNormalization, input_shape: np.ndarray
+    ):
+        """Save normalisation layer with relevant mean, variance."""
+        input = tf.keras.Input(shape=input_shape)
+        x = norm_layer(input)
+        model = tf.keras.Model(input, x)
+        model.save("norm_layer.keras")
+
+    def save_cloud_layer(self, cloud_layer: CloudsLayer, input_shape: np.ndarray):
+        """Save cloud layer with relevant mean, variance."""
+        input = tf.keras.Input(shape=input_shape)
+        x = cloud_layer(input)
+        model = tf.keras.Model(input, x)
+        model.save("cloud_layer.keras")
 
     def save_data_shuffle_indices(self, ds_indices: dict):
         """Save shuffle indices."""

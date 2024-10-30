@@ -5,18 +5,25 @@
 # project: Prototype system for a Copernicus C02 monitoring service (CoCO2)
 # ----------------------------------------------------------------------------
 
+import logging
 import sys
 
 import hydra
+import wandb
 from omegaconf import DictConfig, OmegaConf
 
-import wandb
 from include.callbacks import initiate_wb
 from model_training import Model_training_manager
 
 
 @hydra.main(config_path="cfg", config_name="config")
 def main_train(cfg: DictConfig):
+    logging.basicConfig(
+        filename="app.log",
+        filemode="w",
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s - [In %(funcName)s: %(filename)s (line %(lineno)d)]",
+    )
+
     print("\n \n \n \n \n Run begins \n \n \n \n \n")
     print(OmegaConf.to_yaml(cfg, resolve=True))
     initiate_wb(cfg)

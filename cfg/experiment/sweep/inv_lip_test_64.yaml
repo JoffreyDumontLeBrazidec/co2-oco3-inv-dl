@@ -1,0 +1,44 @@
+# @package _global_
+
+defaults:
+  - override /model: inversion
+
+exp_name: inv_lip_test_64
+libre_folder: ${exp_name}
+data:
+    path:
+        train:
+            name: 2km_forLip_64
+        valid:
+            name: 2km_Dolo_64
+        valid_2:
+            name: 2km_Dolo_64_beta_distribution_mapping          
+        extra_valid:
+            name: 2km_Lip_64
+    input:
+        chan_0: xco2
+        chan_1: u_wind 
+        chan_2: v_wind
+        chan_4: None
+
+training:
+    max_epochs: 500
+
+hydra:
+  mode: MULTIRUN
+  sweeper:
+    params:
+        data.input.chan_3: None, no2
+        model.name: essential 
+        training.loss_func: MeanAbsoluteError, MeanAbsolutePercentageError
+        data.input.clouds_threshold: 0.99, 0.74
+        augmentations.scaling_method: uniform_scaling, beta_distribution_mapping
+        data.input.timedate: False, True
+        training.init_lr: 0.001, 0.01
+        model.dropout_rate: 0.2, 0.1
+
+  sweep:
+    dir: ${dir_res}
+    subdir: ${libre_folder}_sweep/${hydra.job.num}
+    
+sweep: true

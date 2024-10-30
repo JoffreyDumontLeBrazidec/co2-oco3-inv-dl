@@ -1,0 +1,68 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.13.7
+    framework: keras
+    is_jupyter_run: true
+    is_kaggle_kernel: false
+    python_version: 3.9.15
+    start_time: 1701361844.172376
+    t:
+      1:
+      - 2
+      - 3
+      - 5
+      - 50
+      - 53
+      - 54
+      - 55
+      2:
+      - 2
+      - 3
+      - 5
+      - 50
+      - 53
+      - 54
+      - 55
+      3:
+      - 2
+      - 13
+      - 16
+      - 23
+      4: 3.9.15
+      5: 0.13.7
+      8:
+      - 1
+      - 8
+chan_0:
+  desc: null
+  value: xco2_noisy
+chan_1:
+  desc: null
+  value: u_wind
+chan_2:
+  desc: null
+  value: v_wind
+chan_3:
+  desc: null
+  value: u_wind
+chan_4:
+  desc: null
+  value: None
+model:
+  desc: null
+  value: essential
+p_scal_max:
+  desc: null
+  value: 2
+p_scal_min:
+  desc: null
+  value: 0.25
+train:
+  desc: null
+  value: 2km_forLip_2
+valid:
+  desc: null
+  value: 2km_forLip_2

@@ -1,3 +1,0 @@
-- model=segmentation
-- training.max_epochs=50
-- data.output.max_w=20

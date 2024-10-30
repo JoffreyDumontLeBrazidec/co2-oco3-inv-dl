@@ -1,3 +1,0 @@
-- model=segmentation
-- augmentations.shift.range=0.2
-- training.max_epochs=50

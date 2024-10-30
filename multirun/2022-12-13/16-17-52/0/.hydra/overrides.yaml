@@ -1,4 +1,0 @@
-- training.max_epochs=100
-- model=segmentation
-- data.output.max_w=4
-- data.output.curve=exponential

@@ -1,6 +1,6 @@
 # ----------------------------------------------------------------------------
 # author: joffrey.dumont@enpc.fr or joffreydumont@hotmail.fr
-# created: 2021-2023
+# created: 2021-2024
 # laboratory: CEREA,  École des Ponts and EDF R&D, Île-de-France, France
 # project: Prototype system for a Copernicus C02 monitoring service (CoCO2)
 # ----------------------------------------------------------------------------
@@ -24,14 +24,18 @@ def initiate_wb(cfg: DictConfig) -> None:
         config_wb = {
             "train": cfg.data.path.train.name,
             "valid": cfg.data.path.valid.name,
-            "model": cfg.model.name, 
+            "model": cfg.model.name,
             "chan_0": cfg.data.input.chan_0,
             "chan_1": cfg.data.input.chan_1,
             "chan_2": cfg.data.input.chan_2,
             "chan_3": cfg.data.input.chan_3,
             "chan_4": cfg.data.input.chan_4,
-            "p_scal_min": cfg.augmentations.plume_scaling_min,
-            "p_scal_max": cfg.augmentations.plume_scaling_max,
+            "clouds_threshold": cfg.data.input.clouds_threshold,
+            "loss": cfg.training.loss_func,
+            "scaling_method": cfg.augmentations.scaling_method,
+            "timedate": cfg.data.input.timedate,
+            "init_lr": cfg.training.init_lr,
+            "dropout_rate": cfg.model.dropout_rate,
         }
 
         if cfg.sweep:
@@ -112,21 +116,22 @@ def get_wandb(get: bool, cbs: list) -> list:
 
 
 class ExtraValidation(tf.keras.callbacks.Callback):
-    def __init__(self, extra_val_data):
+    def __init__(self, extra_val_data, name):
         super(ExtraValidation, self).__init__()
 
         self.extra_val_data = extra_val_data
+        self.name = name
 
     def on_epoch_end(self, epoch, logs=None):
         (extra_val_data, extra_val_targets) = self.extra_val_data
         extra_val_loss = self.model.evaluate(
             extra_val_data, extra_val_targets, verbose=0
         )
-        print("extra_val_loss:", extra_val_loss)
-        if type(extra_val_loss) == list:
-            wandb.log({"extra_val_loss": extra_val_loss[0]})
-            for idx, metric in enumerate(extra_val_loss[1:]):
-                wandb.log({f"extra_val_metric_{idx}": metric})
+        print(f"{self.name}_loss:", extra_val_loss)
 
+        if isinstance(extra_val_loss, list):
+            wandb.log({f"{self.name}_loss": extra_val_loss[0]})
+            for idx, metric in enumerate(extra_val_loss[1:]):
+                wandb.log({f"{self.name}_metric_{idx}": metric})
         else:
-            wandb.log({"extra_val_loss": extra_val_loss})
+            wandb.log({f"{self.name}_loss": extra_val_loss})

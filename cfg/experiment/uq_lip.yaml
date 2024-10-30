@@ -1,0 +1,31 @@
+# @package _global_
+
+defaults:
+  - override /model: uq
+
+exp_name: UQ_lip
+
+data:
+    path:
+        train:
+            name: 2km_forLip_32
+        valid:
+            name: 2km_Dolo_32
+        valid_2:
+            name: 2km_Dolo_32_beta_distribution_mapping          
+        extra_valid:
+            name: 2km_Lip_32
+    input:
+        chan_1: v_wind
+        chan_2: u_wind
+        chan_3: None
+        chan_4: None
+        clouds_threshold: 0.99
+        timedate: False
+
+model:
+    name: essential
+training:
+    max_epochs: 1000
+
+sweep: true

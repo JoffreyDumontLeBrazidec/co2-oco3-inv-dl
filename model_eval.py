@@ -6,8 +6,11 @@
 # ----------------------------------------------------------------------------
 
 import itertools
+import logging
 import os
 import sys
+from dataclasses import dataclass, field
+from typing import Any, List, Optional
 
 import joblib
 import matplotlib.pyplot as plt
@@ -16,10 +19,11 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import tensorflow as tf
-import tensorflow.keras as keras
 import xarray as xr
 from cmcrameri import cm
 from hydra import compose, initialize
+from hydra.utils import call, instantiate
+from icecream import ic
 from omegaconf import OmegaConf
 from scipy.optimize import differential_evolution
 from sklearn import preprocessing
@@ -27,284 +31,81 @@ from sklearn import preprocessing
 from cfg.convert_cfg_to_yaml import save_myyaml_from_mycfg
 from Data import Data_eval
 from include.loss import pixel_weighted_cross_entropy
+from models.preprocessing import (
+    CloudsLayer,
+    ConditionalNoiseLayer,
+    TrainingTimeNormalization,
+)
 
-# Segmentation
 
-
-def get_data_for_segmentation(
-    dir_res: str,
-    path_eval_nc: str,
-    ds_inds: dict = dict(),
-    region_extrapol: bool = True,
-) -> Data_eval:
-    """Prepare Data object with name_dataset, and train or test mode."""
-
-    if not os.path.exists(os.path.join(dir_res, "config.yaml")):
-        save_myyaml_from_mycfg(dir_res)
-    cfg = OmegaConf.load(os.path.join(dir_res, "config.yaml"))
-
-    data = Data_eval(path_eval_nc)
-    data.prepare_input(
-        cfg.data.input.chan_0,
-        cfg.data.input.chan_1,
-        cfg.data.input.chan_2,
-        cfg.data.input.chan_3,
-        cfg.data.input.chan_4,
+def get_cloud_layer(dir_res: str) -> tf.keras.models.Model:
+    """Get adapted cloud layer for evaluation."""
+    cloud_layer = tf.keras.models.load_model(
+        os.path.join(dir_res, "cloud_layer.keras"),
+        custom_objects={"CloudsLayer": CloudsLayer},
     )
-    data.prepare_output_segmentation(
-        curve=cfg.data.output.curve,
-        min_w=cfg.data.output.min_w,
-        max_w=cfg.data.output.max_w,
-        param_curve=cfg.data.output.param_curve,
+    assert isinstance(cloud_layer, tf.keras.models.Model)
+    return cloud_layer
+
+
+def get_norm_layer(dir_res: str) -> tf.keras.models.Model:
+    """Get adapted norm layer for evaluation."""
+    norm_layer = tf.keras.models.load_model(
+        os.path.join(dir_res, "norm_layer.keras"),
+        custom_objects={"TrainingTimeNormalization": TrainingTimeNormalization},
     )
-    return data
+    assert isinstance(norm_layer, tf.keras.models.Model)
+    return norm_layer
 
 
-def get_segmentation_model(
+def get_inversion_model(
     dir_res: str,
-    name_w: str = "w_best.h5",
+    name_w: str = "w_last.h5",
     optimiser: str = "adam",
-    loss=pixel_weighted_cross_entropy,
+    loss=tf.keras.losses.MeanAbsoluteError(),
 ):
-    """Get segmentation neural network model and compile it with pixel_weighted_cross_entropy loss."""
-    model = tf.keras.models.load_model(os.path.join(dir_res, name_w), compile=False)
+    """Get inversion neural network model."""
+    from efficientnet.tfkeras import (
+        EfficientNetB4,
+    )  # to import "FixedDropout" and fix keras issues
+
+    model = tf.keras.models.load_model(
+        os.path.join(dir_res, name_w),
+        compile=False,
+    )
+    assert isinstance(model, tf.keras.models.Model)
     model.compile(optimiser, loss=loss)
     return model
-
-
-def get_wbce(y_test: tf.Tensor, pred_test: tf.Tensor) -> np.ndarray:
-    """Get wbce given y_test and pred_test."""
-    all_wbce = pixel_weighted_cross_entropy(y_test, pred_test, reduction=False)
-    all_wbce = np.mean(all_wbce, axis=(1, 2))
-    return all_wbce
-
-
-def get_wbce_model_on_data(model: tf.keras.Model, data: Data_eval) -> np.ndarray:
-    """Get wbce scores by segmentation model applied on data."""
-    x = tf.convert_to_tensor(data.x.eval, np.float32)
-    pred = tf.convert_to_tensor(model.predict(x), np.float32)
-    y = tf.convert_to_tensor(data.y.eval, np.float32)
-    all_wbce = get_wbce(y, pred)
-    return all_wbce
-
-
-def get_nwbce_model_on_data(model: tf.keras.Model, data: Data_eval) -> np.ndarray:
-    """Get nwbce scores by segmentation model applied on data."""
-    all_cnn_wbce = get_wbce_model_on_data(model, data)
-    b1_all_wbce = get_b1_seg_wbce(tf.convert_to_tensor(data.y.eval, np.float32))
-    all_cnn_nwbce = all_cnn_wbce / b1_all_wbce
-    return all_cnn_nwbce
-
-
-## neutral baseline functions
-
-
-def get_mean_loss(params, y_test: tf.Tensor, pred_test: tf.Tensor) -> float:
-    """Get mean wbce between y_test and pred_test given shift_to_proba with params."""
-    proba_min, proba_max = params
-    current_pred_test = shift_to_proba(pred_test, proba_max, proba_min)
-    wbce = get_wbce(y_test, current_pred_test)
-    return np.mean(wbce)
-
-
-def shift_to_proba(y_pred, proba_max: np.float32, proba_min: np.float32):
-    """Shift from a boolean to a probability map: 1 to proba_max, 0 to proba_min."""
-    y_pred = np.where(y_pred == 1, proba_max, proba_min)
-    y_pred = tf.convert_to_tensor(y_pred, np.float32)
-    return y_pred
-
-
-def get_b1_seg_pred(y: tf.Tensor):
-    """Get neutral reference/baseline (b1) segmentation predictions."""
-    b1_pred = 0.1 * tf.ones(shape=y.shape)
-    res = differential_evolution(
-        get_mean_loss, args=(y, b1_pred), bounds=[[0, 1], [0, 1]]
-    )
-    [proba_min, proba_max] = res["x"]
-    shifted_b1_pred = shift_to_proba(b1_pred, proba_max, proba_min)
-    return shifted_b1_pred
-
-
-def get_b1_seg_wbce(y: tf.Tensor) -> np.ndarray:
-    """Get wbce for y and neutral reference/baseline (b1) segmentation predictions."""
-    b1_pred = get_b1_seg_pred(y)
-    wbce = get_wbce(y, b1_pred)
-    return wbce
-
-
-## plot functions
-
-
-def plot_segmentation_examples(
-    data: Data_eval,
-    cnn_nwbce: np.ndarray,
-    model: tf.keras.Model,
-    list_idx: list = [],
-    list_ds_idx: list = [],
-    proba_plume: float = 0,
-    no2=False,
-):
-    """Plot examples of {input / truth / output} of the CNN model."""
-
-    if not list_idx:
-        [idx0, ds_idx0] = draw_idx(cnn_nwbce, data.ds)
-        [idx1, ds_idx1] = draw_idx(cnn_nwbce, data.ds)
-        [idx2, ds_idx2] = draw_idx(cnn_nwbce, data.ds)
-        list_idx = [idx0, idx1, idx2]
-        list_ds_idx = [ds_idx0, ds_idx1, ds_idx2]
-
-    N_idx = len(list_idx)
-
-    N_cols = 3
-    if proba_plume > 0:
-        N_cols = N_cols + 1
-    if no2:
-        N_cols = N_cols + 1
-
-    mympf.setMatplotlibParam()
-    plt.viridis()
-    axs = mympf.set_figure_axs(
-        N_idx,
-        N_cols,
-        wratio=0.35,
-        hratio=0.75,
-        pad_w_ext_left=0.25,
-        pad_w_ext_right=0.25,
-        pad_w_int=0.001,
-        pad_h_ext=0.2,
-        pad_h_int=0.15,
-    )
-
-    ims = [None] * (N_idx * N_cols)
-    caxs = [None] * (N_idx * N_cols)
-    cbars = [None] * (N_idx * N_cols)
-
-    Ny = int(data.x.eval.shape[1])
-    Nx = int(data.x.eval.shape[2])
-    for ax in axs:
-        ax.set_xticks([0, int(Ny / 4), int(Ny / 2), int(Ny * 3 / 4), Ny])
-        ax.set_yticks([0, int(Nx / 4), int(Nx / 2), int(Nx * 3 / 4), Nx])
-        ax.set_xticklabels([])
-        ax.set_yticklabels([])
-
-    for i, idx in enumerate(list_idx):
-
-        x_idx = data.x.eval[idx]
-
-        cur_row = 0
-
-        i_ax = cur_row + i * N_cols
-        cur_row += 1
-        ims[i_ax] = axs[i_ax].imshow(
-            np.squeeze(data.x.eval[idx, :, :, 0]), origin="lower"
-        )
-        caxs[i_ax] = axs[i_ax].inset_axes((1.02, 0, 0.035, 1))
-        cbars[i_ax] = plt.colorbar(ims[i_ax], caxs[i_ax], orientation="vertical")
-
-        i_ax = cur_row + i * N_cols
-        cur_row += 1
-        ims[i_ax] = axs[i_ax].imshow(np.squeeze(data.y.eval[idx]), origin="lower")
-        caxs[i_ax] = axs[i_ax].inset_axes((1.02, 0, 0.035, 1))
-        cbars[i_ax] = plt.colorbar(ims[i_ax], caxs[i_ax], orientation="vertical")
-
-        i_ax = cur_row + i * N_cols
-        cur_row += 1
-        ims[i_ax] = axs[i_ax].imshow(
-            np.squeeze(model(tf.expand_dims(data.x.eval[idx], 0))[0]),
-            vmin=0,
-            vmax=1,
-            cmap=cm.cork,
-            origin="lower",
-        )
-        caxs[i_ax] = axs[i_ax].inset_axes((1.02, 0, 0.035, 1))
-        cbars[i_ax] = plt.colorbar(ims[i_ax], caxs[i_ax], orientation="vertical")
-
-        if no2:
-            i_ax = cur_row + i * N_cols
-            cur_row += 1
-            ims[i_ax] = axs[i_ax].imshow(
-                np.squeeze(data.x.eval[idx, :, :, -1]), origin="lower"
-            )
-            caxs[i_ax] = axs[i_ax].inset_axes((1.02, 0, 0.035, 1))
-            cbars[i_ax] = plt.colorbar(ims[i_ax], caxs[i_ax], orientation="vertical")
-
-        if proba_plume > 0:
-            i_ax = cur_row + i * N_cols
-            cur_row += 1
-            ims[i_ax] = axs[i_ax].imshow(
-                np.where(
-                    np.squeeze(model(tf.expand_dims(data.x.eval[idx], 0))[0])
-                    > proba_plume,
-                    1,
-                    0,
-                ),
-                origin="lower",
-            )
-            caxs[i_ax] = axs[i_ax].inset_axes((1.02, 0, 0.035, 1))
-            cbars[i_ax] = plt.colorbar(ims[i_ax], caxs[i_ax], orientation="vertical")
-
-    list_pd_t_idx = []
-    list_cnn_nwbce = []
-    for idx, ds_idx in enumerate(list_ds_idx):
-        list_pd_t_idx.append(pd.Timestamp(ds_idx.time.values))
-        list_cnn_nwbce.append(cnn_nwbce[list_idx[idx]])
-
-    for i, (pd_t_idx, loss_idx) in enumerate(
-        zip(
-            list_pd_t_idx,
-            list_cnn_nwbce,
-        )
-    ):
-        axs[i * N_cols].set_ylabel(
-            f"[{pd_t_idx.month:02d}-{pd_t_idx.day:02d} {pd_t_idx.hour:02d}:00], n_wbce={loss_idx: .3f}"
-        )
-
-    axs[0].set_title("XCO2 field")
-    axs[1].set_title("Targetted plume")
-    axs[2].set_title("CNN segmentation")
-
-    cbars[0].ax.set_title("[ppmv]")
-    cbars[1].ax.set_title("[weight. bool.]")
-    cbars[2].ax.set_title("[proba.]")
-
-
-# Inversion
-## Get functions
 
 
 def get_data_for_inversion(
     dir_res: str,
     path_eval_nc: str,
+    cloud_threshold: float = None,
 ) -> Data_eval:
     """Prepare Data_eval object with name_dataset."""
 
     cfg = OmegaConf.load(os.path.join(dir_res, "config.yaml"))
 
     data = Data_eval(path_eval_nc)
+
     data.prepare_input(
         cfg.data.input.chan_0,
         cfg.data.input.chan_1,
         cfg.data.input.chan_2,
         cfg.data.input.chan_3,
         cfg.data.input.chan_4,
+        clouds_threshold=(
+            cloud_threshold
+            if cloud_threshold is not None
+            else cfg.data.input.clouds_threshold
+        ),
+        norm_model=get_norm_layer(dir_res),
+        cloud_model=get_cloud_layer(dir_res),
     )
+
     data.prepare_output_inversion(cfg.data.output.N_emissions)
     return data
-
-
-def get_inversion_model(
-    dir_res: str,
-    name_w: str = "w_best.h5",
-    optimiser: str = "adam",
-    loss=tf.keras.losses.MeanAbsoluteError(),
-):
-    """Get inversion neural network model."""
-    from efficientnet.tfkeras import \
-        EfficientNetB4  # to import "FixedDropout" and fix keras issues
-
-    model = tf.keras.models.load_model(os.path.join(dir_res, name_w), compile=False)
-    model.compile(optimiser, loss=loss)
-    return model
 
 
 def print_inv_metrics(metrics, message=""):
@@ -314,65 +115,78 @@ def print_inv_metrics(metrics, message=""):
     print("MAPE", np.mean(metrics["mape"]), np.median(metrics["mape"]))
 
 
-def get_inv_metrics_pred_from_ensemble_paths(list_paths_model, path_ds_nc, name_w="w_best.h5"):
+def get_inv_metrics_pred_from_ensemble_paths(
+    list_paths_model, path_ds_nc, name_w="w_best.h5", data_similar=True
+):
     """Get inv metrics from ensemble of paths to models."""
-    data = get_data_for_inversion(
-        list_paths_model[0],
-        path_ds_nc,
-    )
-    y = tf.convert_to_tensor(data.y.eval, np.float32)
-    pred = tf.zeros_like(y)
+    data = get_data_for_inversion(list_paths_model[0], path_ds_nc)
+    pred = tf.zeros_like(data.y.eval, np.float32)
     for path_model in list_paths_model:
-        model = get_inversion_model(path_model, name_w=name_w)
-        x = tf.convert_to_tensor(data.x.eval, np.float32)
-        cur_pred = tf.convert_to_tensor(model.predict(x), np.float32)
-        pred += cur_pred
-        print_inv_metrics(get_inv_metrics(y, cur_pred), message=path_model)
+        if not data_similar:
+            data = get_data_for_inversion(path_model, path_ds_nc)
+        model_eval = InversionModelEvaluation(data=data, dir_res=path_model)
+        pred += tf.convert_to_tensor(model_eval.pred, np.float32)
+        print_inv_metrics(model_eval.get_metrics(), message=path_model)
     pred = pred / len(list_paths_model)
-    metrics = get_inv_metrics(y, pred)
+    ensemble_model_eval = InversionModelEvaluation(data=data, pred=pred)
+    metrics = ensemble_model_eval.get_metrics()
     print_inv_metrics(metrics, message="\nEnsemble")
     return {"metrics": metrics, "pred": pred, "data": data}
 
 
-def get_inv_metrics(y: tf.Tensor, pred: tf.Tensor):
-    """Get inversion metrics between predictions and truth."""
-    f_mae = tf.keras.losses.MeanAbsoluteError(reduction=tf.losses.Reduction.NONE)
-    all_mae = f_mae(y, pred)
-    f_mape = tf.keras.losses.MeanAbsolutePercentageError(
-        reduction=tf.losses.Reduction.NONE
-    )
-    all_mape = f_mape(y, pred)
-    return {"mae": all_mae, "mape": all_mape}
+@dataclass
+class InversionModelEvaluation:
+    dir_res: Optional[str] = None
+    path_eval_nc: Optional[str] = None
+    model: Optional[tf.keras.models.Model] = None
+    data: Optional[Data_eval] = None
+    pred: Optional[np.ndarray] = None
+    y: Optional[np.ndarray] = None
+    x: Optional[tf.Tensor] = field(default=None, init=False)
+
+    def __post_init__(self):
+        if self.path_eval_nc and self.dir_res:
+            self.data = get_data_for_inversion(self.dir_res, self.path_eval_nc)
+        if self.dir_res:
+            self.model = get_inversion_model(self.dir_res)
+        if self.data:
+            self.y = self.data.y.eval
+        if self.model and self.data:
+            self.x = tf.convert_to_tensor(self.data.x.eval, np.float32)
+            self.pred = self.model.predict(self.x, verbose=0)
+        if self.pred is None or self.y is None:
+            raise ValueError("Invalid input parameters")
+
+    def get_metrics(self, metrics_to_return: list[str] = ["mae", "mape"]):
+        """Function to return metrics."""
+        results = {}
+
+        if metrics_to_return is None or "mae" in metrics_to_return:
+            f_mae = tf.keras.losses.MeanAbsoluteError(
+                reduction=tf.losses.Reduction.NONE
+            )
+            results["mae"] = f_mae(self.y, self.pred)
+
+        if metrics_to_return is None or "mape" in metrics_to_return:
+            f_mape = tf.keras.losses.MeanAbsolutePercentageError(
+                reduction=tf.losses.Reduction.NONE
+            )
+            results["mape"] = f_mape(self.y, self.pred)
+
+        if metrics_to_return is None or "raw_diff" in metrics_to_return:
+            y_np = np.squeeze(np.array(self.y))
+            pred_np = np.squeeze(np.array(self.pred))
+            results["raw_diff"] = pred_np - y_np
+
+        if metrics_to_return is None or "raw_relative_diff" in metrics_to_return:
+            y_np = np.squeeze(np.array(self.y))
+            pred_np = np.squeeze(np.array(self.pred))
+            results["raw_relative_diff"] = (pred_np - y_np) / y_np
+
+        self.results = results
+        return results
 
 
-def get_inv_metrics_model_on_data(model: tf.keras.Model, data: Data_eval) -> dict:
-    """Get inversion scores by inversion model applied on data."""
-    x = tf.convert_to_tensor(data.x.eval, np.float32)
-    pred = tf.convert_to_tensor(model.predict(x), np.float32)
-    y = tf.convert_to_tensor(data.y.eval, np.float32)
-    return get_inv_metrics(y, pred)
-
-
-def get_inv_mean_loss(data: Data_eval) -> dict:
-    """Get mean inventory for inversion between y and mean predictions."""
-    y = tf.convert_to_tensor(data.y.eval, np.float32)
-    pred = tf.math.reduce_mean(y) * tf.ones_like(y, np.float32)
-    return get_inv_metrics(y, pred)
-
-
-def get_inv_metrics_from_paths(path_model: str, path_ds_nc: str):
-    """Get inversion scores using only paths as inputs."""
-    data = get_data_for_inversion(
-        path_model,
-        path_ds_nc,
-    )
-    model = get_inversion_model(path_model, name_w="w_best.h5")
-    metrics = get_inv_metrics_model_on_data(model, data)
-    print_inv_metrics(metrics, message=path_model)
-    return metrics
-
-
-## plot functions
 def draw_idx(
     all_scores: np.ndarray, ds: xr.Dataset, interval: list = [], idx: int = -1
 ) -> list:
@@ -397,25 +211,24 @@ def draw_idx(
 
 
 def get_summary_histo_inversion(
-    model: tf.keras.Model, data: Data_eval, dir_save: str = "None"
+    model: tf.keras.Model, data: Data_eval, dir_save: str = "None", bins=30
 ) -> None:
     """Get various histograms summing up the inversion results."""
-    metrics = get_inv_metrics_model_on_data(model, data)
-    mean_metrics = get_inv_mean_loss(data)
+    inv_eval = InversionModelEvaluation(model=model, data=data)
+    metrics = inv_eval.get_metrics(["mae", "mape", "raw_diff"])
+    y = data.y.eval[:, -1]
 
-    df_mae_1 = pd.DataFrame({"loss": metrics["mae"], "method": "CNN"})
-    df_mae_2 = pd.DataFrame({"loss": mean_metrics["mae"], "method": "mean"})
-    df_mae = pd.concat([df_mae_1, df_mae_2])
-
-    df_mape_1 = pd.DataFrame({"loss": metrics["mape"], "method": "CNN"})
-    df_mape_2 = pd.DataFrame({"loss": mean_metrics["mape"], "method": "mean"})
-    df_mape = pd.concat([df_mape_1, df_mape_2])
+    df_mae = pd.DataFrame({"loss": metrics["mae"], "method": "CNN"})
+    df_mape = pd.DataFrame({"loss": metrics["mape"], "method": "CNN"})
+    df_raw_diff = pd.DataFrame({"loss": metrics["raw_diff"], "method": "CNN"})
 
     pred = np.squeeze(model.predict(tf.convert_to_tensor(data.x.eval, np.float32)))
-    y = data.y.eval[:, -1]
-    df_emiss_1 = pd.DataFrame({"emiss": y, "origin": "truth"})
-    df_emiss_2 = pd.DataFrame({"emiss": pred, "origin": "prediction"})
-    df_emiss = pd.concat([df_emiss_1, df_emiss_2])
+    df_emiss = pd.concat(
+        [
+            pd.DataFrame({"emiss": y, "origin": "truth"}),
+            pd.DataFrame({"emiss": pred, "origin": "prediction"}),
+        ]
+    )
 
     N_rows = 2
     N_cols = 2
@@ -433,170 +246,195 @@ def get_summary_histo_inversion(
         pad_h_int=0.35,
     )
 
-    sns.kdeplot(
+    sns.histplot(
         data=df_mae,
         x="loss",
-        common_norm=True,
         hue="method",
+        kde=True,
         color="firebrick",
-        fill=True,
         alpha=0.2,
+        bins=bins,
         ax=axs[0],
     )
-    sns.kdeplot(
+    axs[0].set_xlabel("Mean absolute error")
+    sns.histplot(
         data=df_mape,
         x="loss",
-        common_norm=True,
         hue="method",
+        kde=True,
         color="firebrick",
-        fill=True,
+        bins=bins,
         alpha=0.2,
         ax=axs[1],
     )
-    sns.kdeplot(
+    axs[1].set_xlabel("Mean absolute percentage error")
+    sns.histplot(
         data=df_emiss,
         x="emiss",
-        common_norm=True,
         hue="origin",
+        kde=True,
         color="firebrick",
-        fill=True,
+        bins=bins,
         alpha=0.2,
         ax=axs[2],
     )
-    sns.kdeplot(pred / y, color="firebrick", fill=True, alpha=0.2, ax=axs[3])
-
-    titles = [
-        "Mean absolute error",
-        "Mean absolute percentage error",
-        "Emission rate",
-        "Prediction/Truth",
-    ]
+    axs[2].set_xlabel("Emission rate")
+    sns.histplot(
+        data=df_raw_diff,
+        x="loss",
+        hue="method",
+        kde=True,
+        color="firebrick",
+        bins=bins,
+        alpha=0.2,
+        ax=axs[3],
+    )
+    axs[3].axvline(0, color="black", lw=0.5)
+    axs[3].set_xlabel("Raw difference")
 
     for i_ax, ax in enumerate(axs):
         ax.set_yticklabels([])
-        ax.set_xlabel("")
-        ax.set_xlabel(titles[i_ax])
 
     if dir_save != "None":
         plt.savefig(os.path.join(dir_save, "summary_inv.png"))
 
 
-def plot_inversion_examples(
-    data: Data_eval,
-    all_mae: np.ndarray,
-    all_mape: np.ndarray,
-    model: tf.keras.Model,
-    list_idx: list = [],
-    list_ds_idx: list = [],
-    proba_plume: float = 0,
-    fourth_col=False,
-):
-    """Plot examples of {input / truth / output} of the CNN model."""
+@dataclass
+class InversionPlotter:
+    inv_eval: InversionModelEvaluation
+    cols_to_plot: list[int] = field(default_factory=lambda: [0, 1])
+    winds_as_input: bool = True
+    col_u_wind: int = 2
+    col_v_wind: int = 1
+    N_rows: int = 4
 
-    if not list_idx:
-        [idx0, ds_idx0] = draw_idx(all_mae, data.ds)
-        [idx1, ds_idx1] = draw_idx(all_mae, data.ds)
-        [idx2, ds_idx2] = draw_idx(all_mae, data.ds)
-        list_idx = [idx0, idx1, idx2]
-        list_ds_idx = [ds_idx0, ds_idx1, ds_idx2]
+    def plot_examples(self, list_idx=[], list_ds_idx=[], interval=[]):
+        list_idx, list_ds_idx = self._setup_indices(list_idx, list_ds_idx, interval)
+        self.axs = self._configure_plotting_parameters(list_idx)
+        self._plot_data(list_idx)
+        self._add_annotations(list_idx, list_ds_idx)
 
-    N_idx = len(list_idx)
-
-    N_cols = 3
-    if proba_plume > 0:
-        N_cols = N_cols + 1
-    if fourth_col:
-        N_cols = N_cols + 1
-
-    mympf.setMatplotlibParam()
-    plt.viridis()
-    axs = mympf.set_figure_axs(
-        N_idx,
-        N_cols,
-        wratio=0.35,
-        hratio=0.75,
-        pad_w_ext_left=0.25,
-        pad_w_ext_right=0.25,
-        pad_w_int=0.001,
-        pad_h_ext=0.2,
-        pad_h_int=0.25,
-    )
-
-    ims = [None] * (N_idx * N_cols)
-    caxs = [None] * (N_idx * N_cols)
-    cbars = [None] * (N_idx * N_cols)
-
-    Ny = int(data.x.eval.shape[1])
-    Nx = int(data.x.eval.shape[2])
-    for ax in axs:
-        ax.set_xticks([0, int(Ny / 4), int(Ny / 2), int(Ny * 3 / 4), Ny])
-        ax.set_yticks([0, int(Nx / 4), int(Nx / 2), int(Nx * 3 / 4), Nx])
-        ax.set_xticklabels([])
-        ax.set_yticklabels([])
-
-    for i, idx in enumerate(list_idx):
-
-        x_idx = data.x.eval[idx]
-
-        cur_row = 0
-
-        i_ax = cur_row + i * N_cols
-        cur_row += 1
-        ims[i_ax] = axs[i_ax].imshow(
-            np.squeeze(data.x.eval[idx, :, :, 0]), origin="lower"
-        )
-        caxs[i_ax] = axs[i_ax].inset_axes((1.02, 0, 0.035, 1))
-        cbars[i_ax] = plt.colorbar(ims[i_ax], caxs[i_ax], orientation="vertical")
-
-        i_ax = cur_row + i * N_cols
-        cur_row += 1
-        ims[i_ax] = axs[i_ax].imshow(
-            np.squeeze(data.x.eval[idx, :, :, 1]), origin="lower"
-        )
-        caxs[i_ax] = axs[i_ax].inset_axes((1.02, 0, 0.035, 1))
-        cbars[i_ax] = plt.colorbar(ims[i_ax], caxs[i_ax], orientation="vertical")
-
-        i_ax = cur_row + i * N_cols
-        cur_row += 1
-        ims[i_ax] = axs[i_ax].imshow(
-            np.squeeze(data.x.eval[idx, :, :, 2]), origin="lower"
-        )
-        caxs[i_ax] = axs[i_ax].inset_axes((1.02, 0, 0.035, 1))
-        cbars[i_ax] = plt.colorbar(ims[i_ax], caxs[i_ax], orientation="vertical")
-
-        if fourth_col:
-            i_ax = cur_row + i * N_cols
-            cur_row += 1
-            ims[i_ax] = axs[i_ax].imshow(
-                np.squeeze(data.x.eval[idx, :, :, 3]), origin="lower"
+    def _setup_indices(self, list_idx=[], list_ds_idx=[], interval=[0, 1]):
+        assert self.inv_eval.data is not None
+        ic(list_idx)
+        if not np.array(list_idx).size:
+            list_idx, list_ds_idx = zip(
+                *[
+                    draw_idx(
+                        self.inv_eval.results["mae"],
+                        self.inv_eval.data.ds,
+                        interval=interval,
+                    )
+                    for _ in range(self.N_rows)
+                ]
             )
-            caxs[i_ax] = axs[i_ax].inset_axes((1.02, 0, 0.035, 1))
-            cbars[i_ax] = plt.colorbar(ims[i_ax], caxs[i_ax], orientation="vertical")
+        else:
+            list_ds_idx = []
+            for idx in list_idx:
+                list_ds_idx.append(self.inv_eval.data.ds.isel(idx_img=idx))
+        return list_idx, list_ds_idx
 
-    list_pd_t_idx = []
-    list_all_scores = []
-    for idx, ds_idx in enumerate(list_ds_idx):
-        list_pd_t_idx.append(pd.Timestamp(ds_idx.time.values))
-        list_all_scores.append(all_mae[list_idx[idx]])
+    def _configure_plotting_parameters(self, list_idx):
+        assert self.inv_eval.data is not None
+        if np.max(self.cols_to_plot) > self.inv_eval.data.x.eval.shape[0]:
+            raise ValueError("Maximum column index exceeds the data shape.")
 
-    for i, (pd_t_idx, loss_idx) in enumerate(
-        zip(
-            list_pd_t_idx,
-            list_all_scores,
-        )
-    ):
-        axs[i * N_cols].set_ylabel(
-            f"[{pd_t_idx.month:02d}-{pd_t_idx.day:02d} {pd_t_idx.hour:02d}:00]"
+        mympf.setMatplotlibParam()
+        plt.viridis()
+        return mympf.set_figure_axs(
+            len(list_idx),
+            len(self.cols_to_plot),
+            wratio=0.35,
+            hratio=0.75,
+            pad_w_ext_left=0.25,
+            pad_w_ext_right=0.25,
+            pad_w_int=0.001,
+            pad_h_ext=0.2,
+            pad_h_int=0.25,
         )
 
-    for i, idx in enumerate(list_idx):
-        axs[1 + i * N_cols].set_title(
-            f"time: {pd.Timestamp(list_ds_idx[i].time.values)},   "
-            f"mae: {all_mae[idx].numpy():.3f},   "
-            f"mape: {all_mape[idx].numpy():.3f},   "
-            f"truth: {data.y.eval[idx][0]:.3f},   "
-            f"pred: {model.predict(data.x.eval[idx:idx+1])[0][0]:.3f},   "
+    def _plot_data(self, list_idx):
+        assert self.inv_eval.data is not None
+        self.N_wind_points = 8
+        self.Ny = int(self.inv_eval.data.x.eval.shape[1])
+        self.Nx = int(self.inv_eval.data.x.eval.shape[2])
+        self.ims = [None] * (len(list_idx) * len(self.cols_to_plot))
+        self.caxs = [None] * (len(list_idx) * len(self.cols_to_plot))
+        self.cbars = [None] * (len(list_idx) * len(self.cols_to_plot))
+
+        for ax in self.axs:
+            ax.set_xticks([int(self.Ny / 4), int(self.Ny / 2), int(self.Ny * 3 / 4)])
+            ax.set_yticks([int(self.Nx / 4), int(self.Nx / 2), int(self.Nx * 3 / 4)])
+            ax.set_xticklabels([])
+            ax.set_yticklabels([])
+
+        for i, idx in enumerate(list_idx):
+            x_idx = self.inv_eval.data.x.eval[idx]
+            for i_col in range(len(self.cols_to_plot)):
+                self._plot_column(i, i_col, x_idx)
+
+    def _plot_column(self, i, i_col, x_idx):
+        i_ax = i * len(self.cols_to_plot) + i_col
+        if i_col == 1 and self.winds_as_input:
+            self._plot_wind_vector(i_ax, x_idx)
+        else:
+            self._plot_image_data(i_ax, x_idx, i_col)
+
+    def _plot_wind_vector(self, i_ax, x_idx):
+        u, v = self._extract_wind_components(x_idx)
+        self.ims[i_ax] = self.axs[i_ax].quiver(
+            np.arange(0, self.Nx, self.N_wind_points),
+            np.arange(0, self.Ny, self.N_wind_points),
+            u,
+            v,
+            angles="xy",
+            scale_units="xy",
+            scale=0.1,
         )
+
+    def _extract_wind_components(self, x_idx):
+        u = np.squeeze(x_idx[:, :, self.col_u_wind])
+        u = u[np.arange(0, u.shape[0], self.N_wind_points), :][
+            :, np.arange(0, u.shape[1], self.N_wind_points)
+        ]
+        v = np.squeeze(x_idx[:, :, self.col_v_wind])
+        v = v[np.arange(0, v.shape[0], self.N_wind_points), :][
+            :, np.arange(0, v.shape[1], self.N_wind_points)
+        ]
+        return u, v
+
+    def _plot_image_data(self, i_ax, x_idx, i_col):
+        self.ims[i_ax] = self.axs[i_ax].imshow(
+            np.squeeze(x_idx[:, :, self.cols_to_plot[i_col]]),
+            origin="lower",
+        )
+        self._add_colorbar(i_ax)
+
+    def _add_colorbar(self, i_ax):
+        self.caxs[i_ax] = self.axs[i_ax].inset_axes((1.02, 0, 0.035, 1))
+        self.cbars[i_ax] = plt.colorbar(
+            self.ims[i_ax], self.caxs[i_ax], orientation="vertical"
+        )
+
+    def _add_annotations(self, list_idx, list_ds_idx):
+        assert self.inv_eval.data is not None
+        assert self.inv_eval.pred is not None
+        for i, idx in enumerate(list_idx):
+            pd_t_idx = pd.Timestamp(list_ds_idx[i].time.values)
+            self.axs[i * len(self.cols_to_plot)].set_ylabel(
+                f"[{pd_t_idx.month:02d}-{pd_t_idx.day:02d} {pd_t_idx.hour:02d}:00]"
+            )
+            mae_value = self.inv_eval.results["mae"][idx].numpy()
+            mape_value = self.inv_eval.results["mape"][idx].numpy()
+            truth_value = self.inv_eval.data.y.eval[idx][0]
+            pred_value = self.inv_eval.pred[idx][0]
+            self.axs[1 + i * len(self.cols_to_plot)].set_title(
+                f"time: {pd_t_idx},   "
+                f"mae: {mae_value:.3f},   "
+                f"mape: {mape_value:.3f},   "
+                f"truth: {truth_value:.3f},   "
+                f"pred: {pred_value:.3f},   "
+            )
 
 
 def channel_permutation_importance(dir_model: str, path_eval_nc: str, size_max_combi=1):
@@ -642,65 +480,57 @@ def channel_permutation_importance(dir_model: str, path_eval_nc: str, size_max_c
 def build_df_perf_inv(metrics):
     """Build dataframe of inversion performances."""
 
-    metrics_none = metrics["none"]
-    metrics_seg_pred_no2 = metrics["seg_pred_no2"]
-    metrics_no2 = metrics["no2"]
-    metrics_cs = metrics["cs"]
+    keys = ["none", "seg_pred_no2", "no2", "cs"]
+    labels = ["No additional input", "Segmentation", "NO2", "CSF"]
 
-    mape_col = "Relative error (%)"
+    mape_col, mae_col, rel_col, raw_col = (
+        "Absolute relative error (%)",
+        "Absolute error (Mt/yr)",
+        "Relative error (%)",
+        "Raw difference (Mt/yr)",
+    )
     second_col = "Add. input:"
-    df_mape_none = pd.DataFrame(
-        {mape_col: metrics_none["mape"], second_col: "No additional input"}
-    )
-    df_mape_seg = pd.DataFrame(
-        {mape_col: metrics_seg_pred_no2["mape"], second_col: "Segmentation"}
-    )
-    df_mape_no2 = pd.DataFrame({mape_col: metrics_no2["mape"], second_col: "XNO2"})
-    df_mape_cs = pd.DataFrame(
-        {mape_col: metrics_cs["mape"], second_col: "CSF"}
-    )
-    df_mape_cs[mape_col] = df_mape_cs[mape_col].apply(lambda x: 200 if x > 200 else x)
-    df_mape = pd.concat([df_mape_none, df_mape_seg, df_mape_no2, df_mape_cs])
+    df_mape, df_mae, df_rel, df_raw = [], [], [], []
 
-    mae_col = "Absolute error (Mt/yr)"
-    second_col = "Add. input:"
-    df_mae_none = pd.DataFrame(
-        {mae_col: metrics_none["mae"], second_col: "No additional input"}
-    )
-    df_mae_seg = pd.DataFrame(
-        {mae_col: metrics_seg_pred_no2["mae"], second_col: "Segmentation"}
-    )
-    df_mae_no2 = pd.DataFrame({mae_col: metrics_no2["mae"], second_col: "XNO2"})
-    df_mae_cs = pd.DataFrame(
-        {mae_col: metrics_cs["mae"], second_col: "CSF"}
-    )
-    df_mae_cs[mae_col] = df_mae_cs[mae_col].apply(lambda x: 30 if x > 30 else x)
-    df_mae = pd.concat([df_mae_none, df_mae_seg, df_mae_no2, df_mae_cs])
+    for key, label in zip(keys, labels):
+        for df, col, key_df in zip(
+            [df_mape, df_mae, df_rel, df_raw],
+            [mape_col, mae_col, rel_col, raw_col],
+            ["mape", "mae", "raw_relative_diff", "raw_diff"],
+        ):
+            df.append(pd.DataFrame({col: metrics[key][key_df], second_col: label}))
 
-    df_mape_groupby = df_mape.groupby("Add. input:")
-    desc = df_mape_groupby.describe()
-    desc = desc.drop((mape_col, "count"), axis=1)
-    desc = desc.drop((mape_col, "std"), axis=1)
-    desc = desc.drop((mape_col, "min"), axis=1)
-    desc = desc.drop((mape_col, "mean"), axis=1)
-    desc = desc.drop((mape_col, "max"), axis=1)
-    order = ["No additional input", "Segmentation", "XNO2", "CSF"]
+    df_mape = pd.concat(df_mape)
+    df_mae = pd.concat(df_mae)
+    df_rel = pd.concat(df_rel)
+    df_raw = pd.concat(df_raw)
 
-    desc_mape = desc.loc[order]
+    df_mape[mape_col] = df_mape[mape_col].apply(lambda x: 200 if x > 200 else x)
+    df_mae[mae_col] = df_mae[mae_col].apply(lambda x: 30 if x > 30 else x)
+    df_rel[rel_col] = df_rel[rel_col].apply(lambda x: x * 100)
+    df_rel[rel_col] = df_rel[rel_col].apply(lambda x: -150 if x < -150 else x)
+    df_rel[rel_col] = df_rel[rel_col].apply(lambda x: 150 if x > 150 else x)
 
-    df_mae_groupby = df_mae.groupby("Add. input:")
-    desc = df_mae_groupby.describe()
-    desc = desc.drop((mae_col, "count"), axis=1)
-    desc = desc.drop((mae_col, "std"), axis=1)
-    desc = desc.drop((mae_col, "min"), axis=1)
-    desc = desc.drop((mae_col, "mean"), axis=1)
-    desc = desc.drop((mae_col, "max"), axis=1)
-    order = ["No additional input", "Segmentation", "XNO2", "CSF"]
+    def group_and_describe(df, col):
+        df_groupby = df.groupby(second_col).describe()
+        df_groupby = df_groupby.drop(
+            [(col, s) for s in ["count", "std", "min", "mean", "max"]], axis=1
+        )
+        return df_groupby.loc[labels]
 
-    desc_mae = desc.loc[order]
+    desc_mape = group_and_describe(df_mape, mape_col)
+    desc_mae = group_and_describe(df_mae, mae_col)
+    desc_rel = group_and_describe(df_rel, rel_col)
+    desc_raw = group_and_describe(df_raw, raw_col)
 
-    result = desc_mape.join(desc_mae)
-    return {"res": result, "df_mae": df_mae, "df_mape": df_mape}
+    return {
+        "res": desc_mape.join(desc_mae).join(desc_rel).join(desc_raw),
+        "df_mae": df_mae,
+        "df_mape": df_mape,
+        "df_rel": df_rel,
+        "df_raw": df_raw,
+    }
+
 
 def integrated_gradients(model, img_tensor, baseline_tensor, num_steps=100):
     # Define the path from baseline to input as a straight line

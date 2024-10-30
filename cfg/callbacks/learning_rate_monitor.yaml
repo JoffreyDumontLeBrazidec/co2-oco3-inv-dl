@@ -1,6 +1,6 @@
 learning_rate_monitor:
     __target__: True
-    factor: 0.5
+    factor: 0.2
     patience: 20
     min_delta: 5E-3
     min_lr: 5E-5

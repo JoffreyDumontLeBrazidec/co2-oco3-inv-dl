@@ -1,4 +1,0 @@
-- model=segmentation
-- augmentations.shift.range=0.2
-- data.path.valid.name=2km_Ber
-- data.path.train.name=2km_forBer

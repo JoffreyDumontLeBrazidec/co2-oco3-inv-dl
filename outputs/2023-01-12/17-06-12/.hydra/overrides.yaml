@@ -1,4 +1,0 @@
-- model=segmentation
-- augmentations.shift.range=0.2
-- data.path.train.name=2km_S_pBer
-- training.max_epochs=50

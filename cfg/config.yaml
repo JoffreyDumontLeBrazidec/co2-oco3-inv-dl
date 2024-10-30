@@ -3,13 +3,13 @@ defaults:
     - _self_
     - model: inversion 
     - training: default
-    - augmentations: default
+    - augmentations: ${model}
     - callbacks:
         - model_checkpoint
         - learning_rate_monitor
         - wandb
     - hydra: default
-dir_res: res/${model.type}
+dir_res: /libre/dumontj/coco2/weights/new/
 exp_name: ${now:%Y-%m-%d}_${now:%H-%M-%S}
 seed: 42
 sweep: false

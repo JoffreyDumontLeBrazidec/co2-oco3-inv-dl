@@ -1,0 +1,44 @@
+# @package _global_
+
+defaults:
+  - override /model: inversion
+
+exp_name: inv_tur_test_32
+libre_folder: ${exp_name}
+data:
+    path:
+        train:
+            name: 2km_forTur_32
+        valid:
+            name: 2km_Dolo_32
+        valid_2:
+            name: 2km_Dolo_32_beta_distribution_mapping          
+        extra_valid:
+            name: 2km_Tur_32
+    input:
+        chan_0: xco2
+        chan_1: u_wind 
+        chan_2: v_wind
+        chan_4: None
+
+training:
+    max_epochs: 750
+
+hydra:
+  mode: MULTIRUN
+  sweeper:
+    params:
+        data.input.chan_3: None, no2
+        model.name: essential 
+        training.loss_func: MeanAbsoluteError
+        data.input.clouds_threshold: 0.5, 0.25, 0.74, 0.99
+        augmentations.scaling_method: beta_distribution_mapping
+        data.input.timedate: True
+        training.init_lr: 0.001
+        model.dropout_rate: 0.2
+        augmentations.xco2_emiss_max: 40
+  sweep:
+    dir: ${dir_res}
+    subdir: ${libre_folder}_sweep/${hydra.job.num}
+    
+sweep: true

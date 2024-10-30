@@ -1,0 +1,44 @@
+# @package _global_
+
+defaults:
+  - override /model: inversion
+
+exp_name: inv_lip_clouds
+libre_folder: inv_lip_clouds_sweep_new_models
+# ${exp_name}
+
+data:
+    path:
+        train:
+            name: 2km_forLip_2
+        valid:
+            name: 2km_forLip_2
+        valid_2:
+            name: 2km_forLip_2
+        extra_valid:
+            name: 2km_Lip
+    input:
+        chan_0: xco2
+        chan_1: u_wind 
+        chan_2: v_wind
+        chan_4: None
+
+training:
+    max_epochs: 500
+
+hydra:
+  mode: MULTIRUN
+  sweeper:
+    params:
+        data.input.chan_3: None, no2
+        model.name: deep_cnn_advanced,densenet_like_model,inception_like_model,simple_resnet
+        model.loss_func: MeanAbsoluteError, MeanAbsolutePercentageError,MeanAbsolutePercentageError
+        augmentations.plume_scaling_min: 0.33
+        augmentations.plume_scaling_max: 2.25
+        data.input.name_clouds_array: extracted_clouds_05.npy,extracted_clouds_062.npy,extracted_clouds_074.npy,extracted_clouds_087.npy, extracted_clouds_099.npy
+
+  sweep:
+    dir: ${dir_res}
+    subdir: ${libre_folder}/${hydra.job.num}
+    
+sweep: true

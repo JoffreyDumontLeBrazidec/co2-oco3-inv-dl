@@ -75,7 +75,10 @@ def define_metrics(exp_purpose: str):
     if exp_purpose == "segmentation":
         metrics = []
     elif exp_purpose == "inversion":
-        metrics = [tf.keras.losses.MeanAbsolutePercentageError(), tf.keras.losses.MeanAbsoluteError()]
+        metrics = [
+            tf.keras.losses.MeanAbsolutePercentageError(),
+            tf.keras.losses.MeanAbsoluteError(),
+        ]
     return metrics
 
 

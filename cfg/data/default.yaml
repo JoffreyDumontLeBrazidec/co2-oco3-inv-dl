@@ -8,11 +8,14 @@ path:
     directory: /libre/dumontj/coco2/dl-input
     train:
         name: 2km_forLip
-        nc: train_dataset.nc
+        nc: dataset.nc
     valid: 
         name: ${data.path.train.name}
-        nc: valid_dataset.nc
+        nc: dataset.nc
+    valid_2: 
+        name: ${data.path.train.name}
+        nc: dataset.nc
     extra_valid:
         name: ${data.path.train.name}
-        nc: valid_dataset.nc
+        nc: dataset.nc
 

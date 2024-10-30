@@ -1,5 +1,0 @@
-- model=segmentation
-- augmentations.shift.range=0.2
-- data.path.valid.name=2km_Lip
-- data.path.train.name=2km_forLip
-- training.max_epochs=1500
